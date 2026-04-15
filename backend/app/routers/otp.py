@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from ..config import get_allowed_auth_emails
@@ -18,7 +18,7 @@ class OTPVerifyPayload(BaseModel):
 
 
 @router.post("/otp/request")
-async def request_otp(payload: OTPRequestPayload) -> dict:
+async def request_otp(payload: OTPRequestPayload, background_tasks: BackgroundTasks) -> dict:
   """
   Request an OTP to be sent to the provided email.
   Email must be in the allowed list.
@@ -31,13 +31,10 @@ async def request_otp(payload: OTPRequestPayload) -> dict:
   
   try:
     otp_code = create_otp(email)
-    email_sent = send_otp_email(email, otp_code)
-    
-    if not email_sent:
-      raise HTTPException(status_code=500, detail="Failed to send OTP email. Please try again.")
+    background_tasks.add_task(send_otp_email, email, otp_code)
     
     return {
-      "message": "OTP sent successfully",
+      "message": "OTP generated. Check your email shortly.",
       "email": email,
       "expires_in_minutes": 10
     }

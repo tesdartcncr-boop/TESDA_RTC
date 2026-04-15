@@ -37,7 +37,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
       }
 
       setIsCodeSent(true);
-      setStatus("OTP sent to your email. Enter the 6-digit code below.");
+      setStatus("OTP generated. Check your email shortly.");
     } catch (error) {
       setStatus(error.message);
     } finally {
