@@ -2,6 +2,8 @@ import { useMemo, useState } from "react";
 import { getAllowedAuthEmails, isAllowedAuthEmail } from "../services/auth";
 import { supabase } from "../services/supabase";
 
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
 export default function LoginScreen({ portalName, description, errorMessage = "" }) {
   const allowedEmails = useMemo(() => getAllowedAuthEmails(), []);
   const [email, setEmail] = useState(allowedEmails[0] || "");
@@ -11,7 +13,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
   const [isVerifying, setIsVerifying] = useState(false);
   const [isCodeSent, setIsCodeSent] = useState(false);
 
-  async function sendOtp() {
+  async function requestOtp() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!isAllowedAuthEmail(normalizedEmail)) {
@@ -23,17 +25,20 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
     setStatus("Sending OTP...");
 
     try {
-      const { error } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: { shouldCreateUser: true }
+      const response = await fetch(`${API_BASE_URL}/auth/otp/request`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail })
       });
 
-      if (error) {
-        throw error;
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Failed to send OTP");
       }
 
       setIsCodeSent(true);
-      setStatus("OTP sent. Check your inbox and enter the code below.");
+      setStatus("OTP sent to your email. Enter the 6-digit code below.");
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -41,7 +46,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
     }
   }
 
-  async function verifyOtp() {
+  async function verifyAndSignIn() {
     const normalizedEmail = email.trim().toLowerCase();
 
     if (!isAllowedAuthEmail(normalizedEmail)) {
@@ -58,10 +63,23 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
     setStatus("Verifying OTP...");
 
     try {
-      const { error } = await supabase.auth.verifyOtp({
+      // Verify OTP with backend
+      const verifyResponse = await fetch(`${API_BASE_URL}/auth/otp/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: normalizedEmail, otp_code: otp.trim() })
+      });
+
+      const verifyData = await verifyResponse.json();
+
+      if (!verifyResponse.ok) {
+        throw new Error(verifyData.detail || "Invalid OTP code");
+      }
+
+      // OTP verified, now sign in with Supabase using passwordless flow
+      const { error } = await supabase.auth.signInWithOtp({
         email: normalizedEmail,
-        token: otp.trim(),
-        type: "email"
+        options: { shouldCreateUser: true }
       });
 
       if (error) {
@@ -114,10 +132,10 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
         </label>
 
         <div className="auth-actions">
-          <button type="button" onClick={sendOtp} disabled={isSending}>
+          <button type="button" onClick={requestOtp} disabled={isSending}>
             {isSending ? "Sending..." : isCodeSent ? "Resend OTP" : "Send OTP"}
           </button>
-          <button type="button" className="secondary-btn" onClick={verifyOtp} disabled={isVerifying || !isCodeSent}>
+          <button type="button" className="secondary-btn" onClick={verifyAndSignIn} disabled={isVerifying || !isCodeSent}>
             {isVerifying ? "Verifying..." : "Verify OTP"}
           </button>
         </div>
