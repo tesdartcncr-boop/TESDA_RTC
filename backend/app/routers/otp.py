@@ -1,10 +1,11 @@
-from fastapi import APIRouter, BackgroundTasks, HTTPException
+from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, EmailStr
+from starlette.concurrency import run_in_threadpool
 
 from ..config import get_allowed_auth_emails
 from ..services.auth import create_portal_session
 from ..services.email_service import send_otp_email
-from ..services.otp_service import create_otp, verify_otp
+from ..services.otp_service import create_otp, delete_otp, verify_otp
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -19,7 +20,7 @@ class OTPVerifyPayload(BaseModel):
 
 
 @router.post("/otp/request")
-async def request_otp(payload: OTPRequestPayload, background_tasks: BackgroundTasks) -> dict:
+async def request_otp(payload: OTPRequestPayload) -> dict:
   """
   Request an OTP to be sent to the provided email.
   Email must be in the allowed list.
@@ -32,7 +33,11 @@ async def request_otp(payload: OTPRequestPayload, background_tasks: BackgroundTa
   
   try:
     otp_code = create_otp(email)
-    background_tasks.add_task(send_otp_email, email, otp_code)
+
+    email_sent = await run_in_threadpool(send_otp_email, email, otp_code)
+    if not email_sent:
+      delete_otp(email, otp_code)
+      raise HTTPException(status_code=502, detail="Failed to send OTP email. Check SMTP credentials and email settings.")
     
     return {
       "message": "OTP generated. Check your email shortly.",

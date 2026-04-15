@@ -31,8 +31,8 @@ def init_supabase():
   global supabase
   try:
     supabase = get_supabase_client()
-    print("✓ Supabase client initialized successfully")
+    print("Supabase client initialized successfully")
   except Exception as e:
-    print(f"⚠ WARNING: Supabase initialization failed: {e}")
+    print(f"WARNING: Supabase initialization failed: {e}")
     print("  App will continue but Supabase operations will fail.")
     print("  Check environment variables: SUPABASE_URL, SUPABASE_ANON_KEY")

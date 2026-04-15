@@ -32,6 +32,13 @@ def create_otp(email: str) -> str:
   return otp_code
 
 
+def delete_otp(email: str, otp_code: str) -> None:
+  """Delete a stored OTP for the given email and code."""
+  supabase = get_supabase_client()
+
+  supabase.table("otp_tokens").delete().eq("email", email.lower()).eq("otp_code", otp_code).eq("used", False).execute()
+
+
 def verify_otp(email: str, otp_code: str) -> bool:
   """Verify the OTP code for the given email. Returns True if valid, False otherwise."""
   supabase = get_supabase_client()

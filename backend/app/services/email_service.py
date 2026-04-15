@@ -61,7 +61,7 @@ def send_otp_email(recipient_email: str, otp_code: str) -> bool:
             <p style="font-size: 32px; font-weight: bold; letter-spacing: 5px; color: #2c3e50; margin: 0;">{otp_code}</p>
           </div>
           
-          <p style="color: #e74c3c; font-weight: bold;">⏱️ This code will expire in 10 minutes.</p>
+          <p style="color: #e74c3c; font-weight: bold;">This code will expire in 10 minutes.</p>
           
           <p>If you did not request this code, please ignore this email.</p>
           
@@ -90,9 +90,9 @@ def send_otp_email(recipient_email: str, otp_code: str) -> bool:
       server.login(sender_email, sender_password)
       server.sendmail(sender_email, recipient_email, message.as_string())
     
-    print(f"✓ OTP email sent to {recipient_email}")
+    print(f"OTP email sent to {recipient_email}")
     return True
     
   except Exception as e:
-    print(f"✗ Failed to send OTP email to {recipient_email}: {e}")
+    print(f"Failed to send OTP email to {recipient_email}: {e}")
     return False
