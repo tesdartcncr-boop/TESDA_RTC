@@ -11,6 +11,7 @@ from .routers import attendance, backups, employees, reports, settings as settin
 from .services.auth import PROTECTED_PATH_PREFIXES, extract_bearer_token, verify_supabase_access_token
 from .services.backup_service import create_backup_snapshot
 from .services.realtime import manager, publish_event
+from .supabase_client import init_supabase
 
 app = FastAPI(title="DTR Automation API", version="1.0.0")
 
@@ -62,6 +63,9 @@ def run_automatic_backup() -> None:
 
 @app.on_event("startup")
 async def startup() -> None:
+  # Initialize Supabase client on app startup
+  init_supabase()
+  
   if not scheduler.running:
     trigger = CronTrigger.from_crontab(settings.daily_backup_cron)
     scheduler.add_job(

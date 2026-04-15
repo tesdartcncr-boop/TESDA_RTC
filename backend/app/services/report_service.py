@@ -4,7 +4,7 @@ from datetime import datetime
 
 from openpyxl import Workbook
 
-from ..supabase_client import supabase
+from ..supabase_client import get_supabase_client
 
 
 def get_month_range(month: str) -> tuple[str, str]:
@@ -21,6 +21,7 @@ def get_month_range(month: str) -> tuple[str, str]:
 
 
 def get_enriched_attendance(month: str | None = None) -> list[dict]:
+  supabase = get_supabase_client()
   attendance_query = supabase.table("attendance").select("*")
 
   if month:

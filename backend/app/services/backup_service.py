@@ -3,17 +3,19 @@ from datetime import datetime
 from zoneinfo import ZoneInfo
 
 from ..config import settings
-from ..supabase_client import supabase
+from ..supabase_client import get_supabase_client
 
 TABLES_TO_BACKUP = ["employees", "attendance", "schedule_settings", "notifications"]
 
 
 def _fetch_table_data(table_name: str) -> list[dict]:
+  supabase = get_supabase_client()
   response = supabase.table(table_name).select("*").execute()
   return response.data or []
 
 
 def ensure_bucket_exists() -> None:
+  supabase = get_supabase_client()
   bucket = settings.supabase_backup_bucket
   try:
     supabase.storage.get_bucket(bucket)
@@ -22,6 +24,7 @@ def ensure_bucket_exists() -> None:
 
 
 def create_backup_snapshot(source: str = "manual") -> dict:
+  supabase = get_supabase_client()
   ensure_bucket_exists()
 
   timestamp = datetime.now(ZoneInfo(settings.app_timezone))

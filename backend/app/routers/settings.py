@@ -2,13 +2,14 @@ from fastapi import APIRouter
 
 from ..schemas import ScheduleThresholdUpdate
 from ..services.realtime import publish_event
-from ..supabase_client import supabase
+from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 DEFAULT_LATE_THRESHOLD = "08:01"
 
 
 def get_late_threshold_for_date(date_value: str) -> str:
+  supabase = get_supabase_client()
   response = (
     supabase.table("schedule_settings")
     .select("late_threshold")
@@ -33,6 +34,7 @@ def get_schedule_threshold(date: str) -> dict:
 
 @router.put("/schedule-threshold")
 async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
+  supabase = get_supabase_client()
   values = {
     "date": payload.date.isoformat(),
     "late_threshold": payload.late_threshold

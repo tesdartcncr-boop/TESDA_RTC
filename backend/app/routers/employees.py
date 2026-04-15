@@ -3,13 +3,14 @@ from fastapi import APIRouter, HTTPException
 from ..schemas import EmployeeCreate, EmployeeUpdate
 from ..services.passwords import hash_employee_password
 from ..services.realtime import publish_event
-from ..supabase_client import supabase
+from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 
 @router.get("")
 def list_employees(category: str = "regular") -> list[dict]:
+  supabase = get_supabase_client()
   query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category,created_at").order("name")
 
   if category in {"regular", "jo"}:
@@ -24,6 +25,7 @@ async def create_employee(payload: EmployeeCreate) -> dict:
   if not payload.employee_password.strip():
     raise HTTPException(status_code=400, detail="Employee password is required.")
 
+  supabase = get_supabase_client()
   values = payload.model_dump(exclude={"employee_password"})
   values["employee_password_hash"] = hash_employee_password(payload.employee_password)
 
@@ -38,6 +40,7 @@ async def create_employee(payload: EmployeeCreate) -> dict:
 
 @router.put("/{employee_id}")
 async def update_employee(employee_id: int, payload: EmployeeUpdate) -> dict:
+  supabase = get_supabase_client()
   values = payload.model_dump(exclude={"employee_password"})
   if payload.employee_password and payload.employee_password.strip():
     values["employee_password_hash"] = hash_employee_password(payload.employee_password)
@@ -53,6 +56,7 @@ async def update_employee(employee_id: int, payload: EmployeeUpdate) -> dict:
 
 @router.delete("/{employee_id}")
 async def delete_employee(employee_id: int) -> dict:
+  supabase = get_supabase_client()
   existing = supabase.table("employees").select("*").eq("id", employee_id).limit(1).execute()
   if not existing.data:
     raise HTTPException(status_code=404, detail="Employee not found.")
