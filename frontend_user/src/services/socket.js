@@ -7,8 +7,9 @@ function toWebSocketUrl(httpUrl) {
   return httpUrl.replace("http://", "ws://");
 }
 
-export function connectRealtime(onMessage) {
-  const ws = new WebSocket(`${toWebSocketUrl(API_BASE_URL)}/ws/updates`);
+export function connectRealtime(onMessage, accessToken) {
+  const tokenQuery = accessToken ? `?access_token=${encodeURIComponent(accessToken)}` : "";
+  const ws = new WebSocket(`${toWebSocketUrl(API_BASE_URL)}/ws/updates${tokenQuery}`);
 
   ws.onmessage = (event) => {
     try {

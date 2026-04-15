@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
 import AttendanceTable from "./components/AttendanceTable";
 import EmployeeGrid from "./components/EmployeeGrid";
+import LoginScreen from "./components/LoginScreen";
 import EmployeeTabs from "./components/EmployeeTabs";
 import { api } from "./services/api";
+import { isAllowedAuthEmail } from "./services/auth";
+import { supabase } from "./services/supabase";
 import { connectRealtime } from "./services/socket";
 
 function getTodayDate() {
@@ -33,6 +36,9 @@ function getStatusTone(status) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authMessage, setAuthMessage] = useState("");
   const [activeCategory, setActiveCategory] = useState("regular");
   const [selectedDate, setSelectedDate] = useState(getTodayDate());
   const [selectedSchedule, setSelectedSchedule] = useState("A");
@@ -42,6 +48,62 @@ export default function App() {
   const [threshold, setThreshold] = useState("08:01");
   const [status, setStatus] = useState("Ready");
   const [updates, setUpdates] = useState([]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function initializeSession() {
+      const { data } = await supabase.auth.getSession();
+
+      if (!mounted) {
+        return;
+      }
+
+      const currentSession = data.session;
+      const currentEmail = currentSession?.user?.email || "";
+
+      if (currentSession && !isAllowedAuthEmail(currentEmail)) {
+        await supabase.auth.signOut();
+        setSession(null);
+        setAuthMessage("This email is not allowed to access the portal.");
+      } else {
+        setSession(currentSession);
+        setAuthMessage("");
+      }
+
+      setAuthReady(true);
+    }
+
+    initializeSession().catch((error) => {
+      setAuthMessage(error.message);
+      setAuthReady(true);
+    });
+
+    const {
+      data: { subscription }
+    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
+      if (!mounted) {
+        return;
+      }
+
+      const nextEmail = nextSession?.user?.email || "";
+      if (nextSession && !isAllowedAuthEmail(nextEmail)) {
+        await supabase.auth.signOut();
+        setSession(null);
+        setAuthMessage("This email is not allowed to access the portal.");
+        return;
+      }
+
+      setSession(nextSession);
+      setAuthMessage("");
+      setAuthReady(true);
+    });
+
+    return () => {
+      mounted = false;
+      subscription.unsubscribe();
+    };
+  }, []);
 
   async function loadEmployees(category) {
     const data = await api.getEmployees(category);
@@ -73,30 +135,39 @@ export default function App() {
   }
 
   useEffect(() => {
+    if (!session) {
+      return;
+    }
+
     refreshPageData();
-  }, [activeCategory, selectedDate]);
+  }, [activeCategory, selectedDate, session]);
 
   useEffect(() => {
+    if (!session?.access_token) {
+      return undefined;
+    }
+
     const socket = connectRealtime((payload) => {
       setUpdates((prev) => [payload.message || "Attendance updated", ...prev].slice(0, 6));
       if (payload.type === "attendance.updated") {
         loadAttendance(selectedDate, activeCategory).catch(() => {});
       }
-    });
+    }, session.access_token);
 
     return () => {
       socket.close();
     };
-  }, [selectedDate, activeCategory]);
+  }, [selectedDate, activeCategory, session?.access_token]);
 
-  async function handleClock(employeeId) {
+  async function handleClock(employeeId, employeePassword) {
     setStatus("Saving time record...");
     try {
       await api.clockAttendance({
         employee_id: employeeId,
         date: selectedDate,
         schedule_type: selectedSchedule,
-        leave_type: selectedLeaveType || null
+        leave_type: selectedLeaveType || null,
+        employee_password: employeePassword
       });
       await loadAttendance(selectedDate, activeCategory);
       setStatus("Time record saved");
@@ -121,6 +192,30 @@ export default function App() {
   const activeCategoryTitle = getCategoryTitle(activeCategory);
   const activeCategorySummary = getCategorySummary(activeCategory);
   const statusTone = useMemo(() => getStatusTone(status), [status]);
+
+  async function handleSignOut() {
+    await supabase.auth.signOut();
+  }
+
+  if (!authReady) {
+    return (
+      <LoginScreen
+        portalName="DTR Automation User Portal"
+        description="Checking your session before opening the attendance dashboard."
+        errorMessage="Checking your session..."
+      />
+    );
+  }
+
+  if (!session) {
+    return (
+      <LoginScreen
+        portalName="DTR Automation User Portal"
+        description="Use an approved TESDA email to request an OTP and open the user portal."
+        errorMessage={authMessage}
+      />
+    );
+  }
 
   return (
     <main className="page">
@@ -155,8 +250,15 @@ export default function App() {
             </p>
           </div>
 
-          <div className={`status-pill status-pill--${statusTone}`}>{status}</div>
+          <div className="session-bar">
+            <span>{session.user.email}</span>
+            <button type="button" className="secondary-btn" onClick={handleSignOut}>
+              Sign out
+            </button>
+          </div>
         </div>
+
+        <div className={`status-pill status-pill--${statusTone}`}>{status}</div>
 
         <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
 

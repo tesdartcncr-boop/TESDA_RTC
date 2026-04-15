@@ -6,7 +6,8 @@ function createEmptyNameParts() {
     firstName: "",
     secondName: "",
     lastName: "",
-    extension: ""
+    extension: "",
+    employeePassword: ""
   };
 }
 
@@ -65,11 +66,15 @@ function hydrateEmployeeNameParts(employee) {
       firstName: employee.first_name || "",
       secondName: employee.second_name || "",
       lastName: employee.last_name || "",
-      extension: employee.extension || ""
+      extension: employee.extension || "",
+      employeePassword: ""
     };
   }
 
-  return splitEmployeeName(employee.name || "");
+  return {
+    ...splitEmployeeName(employee.name || ""),
+    employeePassword: ""
+  };
 }
 
 function composeEmployeeName(parts) {
@@ -88,7 +93,8 @@ function buildEmployeePayload(parts, category) {
     last_name: parts.lastName.trim(),
     extension: parts.extension.trim() || null,
     name,
-    category
+    category,
+    employee_password: parts.employeePassword.trim() || null
   };
 }
 
@@ -128,6 +134,11 @@ export default function EmployeesPage() {
   async function addEmployee() {
     if (!newNameParts.firstName.trim() || !newNameParts.lastName.trim()) {
       setStatus("First and last name are required.");
+      return;
+    }
+
+    if (!newNameParts.employeePassword.trim()) {
+      setStatus("Employee password is required.");
       return;
     }
 
@@ -171,7 +182,7 @@ export default function EmployeesPage() {
     <section className="card">
       <h2>Employee Management</h2>
       <p className="subtle">Status: {status}</p>
-      <p className="subtle">Use FN, SN, LN, and an optional extension when adding or editing employees.</p>
+      <p className="subtle">Use FN, SN, LN, an optional extension, and assign a password for time in/out.</p>
 
       <div className="toolbar">
         <div className="tab-cluster">
@@ -216,6 +227,16 @@ export default function EmployeesPage() {
               onChange={(event) => setNewNameParts((prev) => ({ ...prev, extension: event.target.value }))}
             />
           </label>
+          <label className="name-field name-field--password">
+            <span>Password</span>
+            <input
+              className="name-input"
+              type="password"
+              placeholder="Assign employee password"
+              value={newNameParts.employeePassword}
+              onChange={(event) => setNewNameParts((prev) => ({ ...prev, employeePassword: event.target.value }))}
+            />
+          </label>
           <button type="button" className="name-submit" onClick={addEmployee}>Add employee</button>
         </div>
       </div>
@@ -228,6 +249,7 @@ export default function EmployeesPage() {
               <th>SN</th>
               <th>LN</th>
               <th>Ext.</th>
+              <th>Password</th>
               <th>Category</th>
               <th>Actions</th>
             </tr>
@@ -261,6 +283,15 @@ export default function EmployeesPage() {
                     className="name-input"
                     value={draftNames[employee.id]?.extension || ""}
                     onChange={(event) => updateDraftName(employee.id, "extension", event.target.value)}
+                  />
+                </td>
+                <td>
+                  <input
+                    className="name-input"
+                    type="password"
+                    placeholder="Leave blank to keep"
+                    value={draftNames[employee.id]?.employeePassword || ""}
+                    onChange={(event) => updateDraftName(employee.id, "employeePassword", event.target.value)}
                   />
                 </td>
                 <td>{employee.category}</td>

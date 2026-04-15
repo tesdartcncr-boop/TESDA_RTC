@@ -14,11 +14,13 @@ class EmployeeNameParts(BaseModel):
 class EmployeeCreate(EmployeeNameParts):
   name: str = Field(min_length=2, max_length=120)
   category: str = Field(pattern="^(regular|jo)$")
+  employee_password: str = Field(min_length=4, max_length=120)
 
 
 class EmployeeUpdate(EmployeeNameParts):
   name: str = Field(min_length=2, max_length=120)
   category: str = Field(pattern="^(regular|jo)$")
+  employee_password: str | None = Field(default=None, min_length=4, max_length=120)
 
 
 class ClockRequest(BaseModel):
@@ -26,6 +28,7 @@ class ClockRequest(BaseModel):
   date: Optional[date] = None
   schedule_type: str = "A"
   leave_type: Optional[str] = None
+  employee_password: str = Field(min_length=1, max_length=120)
 
 
 class AttendanceUpdate(BaseModel):

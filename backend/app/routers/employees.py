@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import EmployeeCreate, EmployeeUpdate
+from ..services.passwords import hash_employee_password
 from ..services.realtime import publish_event
 from ..supabase_client import supabase
 
@@ -9,7 +10,7 @@ router = APIRouter(prefix="/employees", tags=["employees"])
 
 @router.get("")
 def list_employees(category: str = "regular") -> list[dict]:
-  query = supabase.table("employees").select("*").order("name")
+  query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category,created_at").order("name")
 
   if category in {"regular", "jo"}:
     query = query.eq("category", category)
@@ -20,22 +21,32 @@ def list_employees(category: str = "regular") -> list[dict]:
 
 @router.post("")
 async def create_employee(payload: EmployeeCreate) -> dict:
-  response = supabase.table("employees").insert(payload.model_dump()).execute()
+  if not payload.employee_password.strip():
+    raise HTTPException(status_code=400, detail="Employee password is required.")
+
+  values = payload.model_dump(exclude={"employee_password"})
+  values["employee_password_hash"] = hash_employee_password(payload.employee_password)
+
+  response = supabase.table("employees").insert(values).execute()
   if not response.data:
     raise HTTPException(status_code=500, detail="Failed to create employee.")
 
-  created = response.data[0]
+  created = {key: value for key, value in response.data[0].items() if key != "employee_password_hash"}
   await publish_event("employee.created", f"Employee added: {created['name']}", created)
   return created
 
 
 @router.put("/{employee_id}")
 async def update_employee(employee_id: int, payload: EmployeeUpdate) -> dict:
-  response = supabase.table("employees").update(payload.model_dump()).eq("id", employee_id).execute()
+  values = payload.model_dump(exclude={"employee_password"})
+  if payload.employee_password and payload.employee_password.strip():
+    values["employee_password_hash"] = hash_employee_password(payload.employee_password)
+
+  response = supabase.table("employees").update(values).eq("id", employee_id).execute()
   if not response.data:
     raise HTTPException(status_code=404, detail="Employee not found.")
 
-  updated = response.data[0]
+  updated = {key: value for key, value in response.data[0].items() if key != "employee_password_hash"}
   await publish_event("employee.updated", f"Employee updated: {updated['name']}", updated)
   return updated
 

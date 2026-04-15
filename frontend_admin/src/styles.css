@@ -242,6 +242,10 @@ td {
   min-width: 120px;
 }
 
+.name-field--password {
+  grid-column: 1 / -1;
+}
+
 .name-input {
   width: 100%;
   min-width: 0;
@@ -255,7 +259,7 @@ td {
 }
 
 .employee-table {
-  min-width: 980px;
+  min-width: 1080px;
 }
 
 .employee-table th,
@@ -284,6 +288,103 @@ td {
 
   .name-submit {
     min-width: 0;
+  }
+}
+
+.admin-auth-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+}
+
+.admin-auth-card {
+  width: min(560px, 100%);
+}
+
+.admin-eyebrow {
+  color: rgba(236, 252, 252, 0.72);
+}
+
+.auth-email-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.auth-chip {
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(15, 107, 107, 0.12);
+  color: var(--accent-strong);
+  border: 1px solid rgba(15, 107, 107, 0.14);
+  font-size: 0.78rem;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.auth-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.auth-field span,
+.employee-password-field span,
+.session-bar span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.secondary-btn {
+  border: 1px solid rgba(23, 37, 42, 0.12);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-status {
+  margin: 0;
+  color: var(--muted);
+  min-height: 1.5rem;
+}
+
+.session-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.admin-session-bar {
+  margin-top: 0.85rem;
+}
+
+.employee-password-field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.employee-password-field input {
+  width: 100%;
+}
+
+@media (max-width: 768px) {
+  .auth-actions,
+  .session-bar {
+    flex-direction: column;
+    align-items: stretch;
   }
 }
 

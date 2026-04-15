@@ -9,6 +9,7 @@ create table if not exists employees (
   second_name text,
   last_name text not null,
   extension text,
+  employee_password_hash text,
   name text not null,
   category text not null check (category in ('regular', 'jo')),
   created_at timestamptz not null default now()
@@ -71,3 +72,24 @@ create trigger attendance_set_updated_at
 before update on attendance
 for each row
 execute function set_updated_at();
+
+-- Table to store allowed auth emails for frontend/backend OTP gating
+create table if not exists auth_allowed_emails (
+  id bigserial primary key,
+  email text not null unique,
+  enabled boolean not null default true,
+  created_at timestamptz not null default now()
+);
+
+insert into auth_allowed_emails (email) values
+('tesda.mpltp.tapat@gmail.com'),
+('mssabatin@tesda.gov.ph')
+on conflict do nothing;
+
+-- Optional: enable row-level security and allow public select of enabled rows.
+-- If you want frontends to query this table directly (anon role), keep the policy.
+-- Otherwise, fetch via backend using the service role key.
+alter table if exists auth_allowed_emails enable row level security;
+drop policy if exists "allow_public_select_enabled" on auth_allowed_emails;
+create policy "allow_public_select_enabled" on auth_allowed_emails
+  for select using (enabled);

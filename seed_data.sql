@@ -3,17 +3,17 @@
 
 truncate table attendance, schedule_settings, notifications, backup_logs, employees restart identity cascade;
 
-insert into employees (id, first_name, second_name, last_name, extension, name, category) values
-(1, 'Alicia', null, 'Ramos', null, 'Alicia Ramos', 'regular'),
-(2, 'Brandon', null, 'Cruz', null, 'Brandon Cruz', 'regular'),
-(3, 'Celia', null, 'Navarro', null, 'Celia Navarro', 'regular'),
-(4, 'Daryl', null, 'Mendoza', null, 'Daryl Mendoza', 'regular'),
-(5, 'Erika', null, 'Santos', null, 'Erika Santos', 'regular'),
-(6, 'Felix', null, 'Alonzo', null, 'Felix Alonzo', 'regular'),
-(7, 'Grace', null, 'Lim', null, 'Grace Lim', 'jo'),
-(8, 'Hector', 'Dela', 'Pena', null, 'Hector Dela Pena', 'jo'),
-(9, 'Irene', null, 'Gomez', null, 'Irene Gomez', 'jo'),
-(10, 'Jomar', null, 'Velasco', null, 'Jomar Velasco', 'jo');
+insert into employees (id, first_name, second_name, last_name, extension, employee_password_hash, name, category) values
+(1, 'Alicia', null, 'Ramos', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Alicia Ramos', 'regular'),
+(2, 'Brandon', null, 'Cruz', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Brandon Cruz', 'regular'),
+(3, 'Celia', null, 'Navarro', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Celia Navarro', 'regular'),
+(4, 'Daryl', null, 'Mendoza', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Daryl Mendoza', 'regular'),
+(5, 'Erika', null, 'Santos', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Erika Santos', 'regular'),
+(6, 'Felix', null, 'Alonzo', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Felix Alonzo', 'regular'),
+(7, 'Grace', null, 'Lim', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Grace Lim', 'jo'),
+(8, 'Hector', 'Dela', 'Pena', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Hector Dela Pena', 'jo'),
+(9, 'Irene', null, 'Gomez', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Irene Gomez', 'jo'),
+(10, 'Jomar', null, 'Velasco', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Jomar Velasco', 'jo');
 
 insert into schedule_settings (id, date, late_threshold) values
 (1, '2026-04-01', '08:01'),

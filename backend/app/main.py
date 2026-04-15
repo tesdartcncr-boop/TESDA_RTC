@@ -4,9 +4,11 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from .config import get_allowed_origins, settings
 from .routers import attendance, backups, employees, reports, settings as settings_router
+from .services.auth import PROTECTED_PATH_PREFIXES, extract_bearer_token, verify_supabase_access_token
 from .services.backup_service import create_backup_snapshot
 from .services.realtime import manager, publish_event
 
@@ -27,6 +29,20 @@ app.include_router(reports.router)
 app.include_router(backups.router)
 
 scheduler = BackgroundScheduler(timezone=settings.app_timezone)
+
+
+@app.middleware("http")
+async def require_auth_for_protected_routes(request, call_next):
+  if request.method != "OPTIONS" and any(request.url.path.startswith(prefix) for prefix in PROTECTED_PATH_PREFIXES):
+    token = extract_bearer_token(request.headers.get("Authorization"))
+    try:
+      verify_supabase_access_token(token)
+    except Exception as error:
+      status_code = getattr(error, "status_code", 401)
+      detail = getattr(error, "detail", "Unauthorized.")
+      return JSONResponse(status_code=status_code, content={"detail": detail})
+
+  return await call_next(request)
 
 
 def run_automatic_backup() -> None:
@@ -75,6 +91,13 @@ def health() -> dict:
 
 @app.websocket("/ws/updates")
 async def websocket_updates(websocket: WebSocket) -> None:
+  access_token = websocket.query_params.get("access_token", "")
+  try:
+    verify_supabase_access_token(access_token)
+  except Exception:
+    await websocket.close(code=4401)
+    return
+
   await manager.connect(websocket)
   try:
     while True:

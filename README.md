@@ -42,9 +42,15 @@ Create these files from examples:
 Required backend values:
 - SUPABASE_URL
 - SUPABASE_SERVICE_ROLE_KEY
+- SUPABASE_ANON_KEY (needed for auth session verification)
+- SUPABASE_AUTH_ALLOWED_EMAILS (comma-separated approved login emails)
 - SUPABASE_BACKUP_BUCKET (recommended: dtr-backups)
 - ALLOWED_ORIGINS (default already supports localhost ports 5173 and 5174)
 - DAILY_BACKUP_CRON (cron expression, default 0 23 * * *)
+
+Required frontend values:
+- frontend_user/.env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_AUTH_ALLOWED_EMAILS
+- frontend_admin/.env: VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY, VITE_AUTH_ALLOWED_EMAILS
 
 ## 4. Supabase Database Initialization
 
@@ -59,6 +65,8 @@ This creates and seeds:
 - schedule_settings
 - notifications
 - backup_logs
+
+The employee records now include a hashed password field used by the user portal before Time In / Time Out actions.
 
 ## 5. Run All Services Concurrently
 
@@ -75,6 +83,9 @@ What happens:
 ## 6. Feature Coverage
 
 Implemented workflows:
+- OTP login for both user and admin portals through Supabase Auth
+- Approved login emails: tesda.mpltp.tapat@gmail.com and mssabatin@tesda.gov.ph
+- Employee password required before Time In / Time Out
 - Regular and JO employee tabs
 - Add/edit/delete employees (admin)
 - Click card to Time In / Time Out (24-hour output)

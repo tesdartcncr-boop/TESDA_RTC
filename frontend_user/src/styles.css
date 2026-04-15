@@ -202,6 +202,104 @@ td input {
   }
 }
 
+.auth-page {
+  min-height: 100vh;
+  place-items: center;
+}
+
+.auth-card {
+  width: min(560px, 100%);
+  display: grid;
+  gap: 1rem;
+}
+
+.auth-email-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.auth-chip {
+  border-radius: 999px;
+  padding: 0.45rem 0.7rem;
+  background: rgba(199, 93, 50, 0.12);
+  color: var(--accent-strong);
+  border: 1px solid rgba(199, 93, 50, 0.14);
+  font-size: 0.78rem;
+  font-weight: 700;
+  word-break: break-all;
+}
+
+.auth-field {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.auth-field span,
+.employee-password-field span,
+.session-bar span {
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.auth-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.secondary-btn {
+  border: 1px solid rgba(30, 38, 44, 0.12);
+  background: rgba(255, 255, 255, 0.84);
+  color: var(--ink);
+  border-radius: 14px;
+  padding: 0.8rem 1rem;
+  font: inherit;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.auth-status {
+  margin: 0;
+  color: var(--muted);
+  min-height: 1.5rem;
+}
+
+.session-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.employee-password-field {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.employee-password-field input {
+  width: 100%;
+}
+
+.controls .status-pill {
+  justify-self: end;
+}
+
+@media (max-width: 768px) {
+  .auth-actions,
+  .session-bar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .controls .status-pill {
+    justify-self: stretch;
+  }
+}
+
 :root {
   color-scheme: light;
   --bg: #f4efe8;

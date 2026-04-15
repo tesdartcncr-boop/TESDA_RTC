@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 
 from ..schemas import AttendanceUpdate, ClockRequest
 from ..services.realtime import publish_event
+from ..services.passwords import verify_employee_password
 from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_military_time
 from ..supabase_client import supabase
 from .settings import get_late_threshold_for_date
@@ -12,7 +13,7 @@ router = APIRouter(prefix="/attendance", tags=["attendance"])
 
 
 def _get_employee(employee_id: int) -> dict:
-  response = supabase.table("employees").select("*").eq("id", employee_id).limit(1).execute()
+  response = supabase.table("employees").select("id,name,category,employee_password_hash").eq("id", employee_id).limit(1).execute()
   if not response.data:
     raise HTTPException(status_code=404, detail="Employee not found.")
   return response.data[0]
@@ -111,6 +112,12 @@ def get_master_attendance(
 @router.post("/clock")
 async def clock_attendance(payload: ClockRequest) -> dict:
   employee = _get_employee(payload.employee_id)
+  if not employee.get("employee_password_hash"):
+    raise HTTPException(status_code=400, detail="Employee password is not set.")
+
+  if not verify_employee_password(payload.employee_password, employee.get("employee_password_hash")):
+    raise HTTPException(status_code=401, detail="Invalid employee password.")
+
   target_date = (payload.date or date.today()).isoformat()
   schedule_type = (payload.schedule_type or "A").upper()
   leave_type = (payload.leave_type or "").strip().upper() or None

@@ -1,9 +1,18 @@
+import { supabase } from "./supabase";
+
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
+async function getAccessToken() {
+  const { data } = await supabase.auth.getSession();
+  return data.session?.access_token || "";
+}
+
 async function request(path, options = {}) {
+  const accessToken = await getAccessToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
     headers: {
       "Content-Type": "application/json",
+      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
       ...(options.headers || {})
     },
     ...options
@@ -11,6 +20,9 @@ async function request(path, options = {}) {
 
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
+    if (response.status === 401 || response.status === 403) {
+      await supabase.auth.signOut().catch(() => {});
+    }
     throw new Error(errorBody.detail || "Request failed.");
   }
 
