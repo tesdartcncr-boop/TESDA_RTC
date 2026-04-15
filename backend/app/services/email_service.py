@@ -6,12 +6,11 @@ Uses nodemailer-like configuration but implemented in Python with smtplib.
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from ..config import settings
 
 # Gmail SMTP Configuration
 GMAIL_SMTP_SERVER = "smtp.gmail.com"
 GMAIL_SMTP_PORT = 587
-SENDER_EMAIL = "tesda.mpltp.tapat@gmail.com"
-SENDER_APP_PASSWORD = "zuai fzgi eggr lapq"  # Gmail app-specific password (no spaces in actual use)
 
 
 def send_otp_email(recipient_email: str, otp_code: str) -> bool:
@@ -29,7 +28,7 @@ def send_otp_email(recipient_email: str, otp_code: str) -> bool:
     # Create message
     message = MIMEMultipart("alternative")
     message["Subject"] = "Your OTP Code for DTR System"
-    message["From"] = SENDER_EMAIL
+    message["From"] = settings.email_sender
     message["To"] = recipient_email
     
     # HTML email body
@@ -70,8 +69,8 @@ def send_otp_email(recipient_email: str, otp_code: str) -> bool:
     # Connect to Gmail SMTP and send
     with smtplib.SMTP(GMAIL_SMTP_SERVER, GMAIL_SMTP_PORT) as server:
       server.starttls()  # Start TLS encryption
-      server.login(SENDER_EMAIL, SENDER_APP_PASSWORD.replace(" ", ""))  # Remove spaces from app password
-      server.sendmail(SENDER_EMAIL, recipient_email, message.as_string())
+      server.login(settings.email_sender, settings.email_app_password.replace(" ", ""))  # Remove spaces from app password
+      server.sendmail(settings.email_sender, recipient_email, message.as_string())
     
     print(f"✓ OTP email sent to {recipient_email}")
     return True

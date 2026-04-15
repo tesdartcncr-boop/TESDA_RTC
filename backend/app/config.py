@@ -10,6 +10,9 @@ class Settings(BaseSettings):
   allowed_origins: str = "http://localhost:5173,http://localhost:5174"
   app_timezone: str = "Asia/Manila"
   daily_backup_cron: str = "0 23 * * *"
+  # Email configuration (Gmail SMTP)
+  email_sender: str = "tesda.mpltp.tapat@gmail.com"
+  email_app_password: str = ""
 
   model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
