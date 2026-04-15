@@ -106,3 +106,11 @@ create table if not exists otp_tokens (
 
 create index if not exists otp_tokens_email_idx on otp_tokens (email);
 create index if not exists otp_tokens_expires_at_idx on otp_tokens (expires_at);
+
+-- Restore Supabase role access after wiping and recreating the public schema.
+grant usage on schema public to anon, authenticated, service_role;
+grant all privileges on all tables in schema public to anon, authenticated, service_role;
+grant all privileges on all sequences in schema public to anon, authenticated, service_role;
+
+alter default privileges in schema public grant all on tables to anon, authenticated, service_role;
+alter default privileges in schema public grant all on sequences to anon, authenticated, service_role;
