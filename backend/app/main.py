@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_allowed_origins, settings
-from .routers import attendance, backups, employees, reports, settings as settings_router
+from .routers import attendance, backups, employees, otp, reports, settings as settings_router
 from .services.auth import PROTECTED_PATH_PREFIXES, extract_bearer_token, verify_supabase_access_token
 from .services.backup_service import create_backup_snapshot
 from .services.realtime import manager, publish_event
@@ -28,6 +28,7 @@ app.include_router(attendance.router)
 app.include_router(settings_router.router)
 app.include_router(reports.router)
 app.include_router(backups.router)
+app.include_router(otp.router)
 
 scheduler = BackgroundScheduler(timezone=settings.app_timezone)
 

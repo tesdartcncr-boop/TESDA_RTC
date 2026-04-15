@@ -93,3 +93,16 @@ alter table if exists auth_allowed_emails enable row level security;
 drop policy if exists "allow_public_select_enabled" on auth_allowed_emails;
 create policy "allow_public_select_enabled" on auth_allowed_emails
   for select using (enabled);
+
+-- Table to store OTP tokens for email-based OTP login
+create table if not exists otp_tokens (
+  id bigserial primary key,
+  email text not null,
+  otp_code text not null,
+  expires_at timestamptz not null,
+  created_at timestamptz not null default now(),
+  used boolean not null default false
+);
+
+create index if not exists otp_tokens_email_idx on otp_tokens (email);
+create index if not exists otp_tokens_expires_at_idx on otp_tokens (expires_at);
