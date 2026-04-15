@@ -1,4 +1,5 @@
 import { supabase } from "./supabase";
+import { clearPortalSession, getPortalSession } from "./session";
 
 const FALLBACK_PRODUCTION_API_URL = "https://tesda-dtr-system-backend.onrender.com";
 
@@ -23,6 +24,11 @@ function resolveApiBaseUrl() {
 const API_BASE_URL = resolveApiBaseUrl();
 
 async function getAccessToken() {
+  const portalSession = getPortalSession();
+  if (portalSession?.access_token) {
+    return portalSession.access_token;
+  }
+
   const { data } = await supabase.auth.getSession();
   return data.session?.access_token || "";
 }
@@ -41,6 +47,7 @@ async function request(path, options = {}) {
   if (!response.ok) {
     const errorBody = await response.json().catch(() => ({}));
     if (response.status === 401 || response.status === 403) {
+      clearPortalSession();
       await supabase.auth.signOut().catch(() => {});
     }
     throw new Error(errorBody.detail || "Request failed.");

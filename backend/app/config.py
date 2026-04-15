@@ -26,4 +26,17 @@ def get_allowed_origins() -> list[str]:
 
 
 def get_allowed_auth_emails() -> list[str]:
+  try:
+    from .supabase_client import get_supabase_client
+
+    supabase = get_supabase_client()
+    response = supabase.table("auth_allowed_emails").select("email").eq("enabled", True).order("email").execute()
+    emails = [row["email"].strip().lower() for row in (response.data or []) if row.get("email")]
+
+    if emails:
+      return emails
+  except Exception:
+    # Fall back to the env list if the table is missing or unavailable.
+    pass
+
   return [email.strip().lower() for email in settings.supabase_auth_allowed_emails.split(",") if email.strip()]

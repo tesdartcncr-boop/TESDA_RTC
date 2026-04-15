@@ -6,7 +6,7 @@ import EmployeesPage from "./pages/EmployeesPage";
 import MasterSheetPage from "./pages/MasterSheetPage";
 import ReportsPage from "./pages/ReportsPage";
 import ScheduleSettingsPage from "./pages/ScheduleSettingsPage";
-import { isAllowedAuthEmail } from "./services/auth";
+import { clearPortalSession, getPortalSession } from "./services/session";
 import { supabase } from "./services/supabase";
 import { connectRealtime } from "./services/socket";
 
@@ -29,6 +29,25 @@ export default function App() {
     let mounted = true;
 
     async function initializeSession() {
+      try {
+        const rawPortalSession = window.localStorage.getItem("dtr_portal_session");
+        if (rawPortalSession) {
+          const portalSession = JSON.parse(rawPortalSession);
+          const expiresAt = Number(portalSession?.expires_at || 0);
+
+          if (expiresAt && Date.now() / 1000 >= expiresAt) {
+            window.localStorage.removeItem("dtr_portal_session");
+          } else {
+            setSession(portalSession);
+            setAuthMessage("");
+            setAuthReady(true);
+            return;
+          }
+        }
+      } catch {
+        window.localStorage.removeItem("dtr_portal_session");
+      }
+
       const { data } = await supabase.auth.getSession();
 
       if (!mounted) {
@@ -36,16 +55,8 @@ export default function App() {
       }
 
       const currentSession = data.session;
-      const currentEmail = currentSession?.user?.email || "";
-
-      if (currentSession && !isAllowedAuthEmail(currentEmail)) {
-        await supabase.auth.signOut();
-        setSession(null);
-        setAuthMessage("This email is not allowed to access the portal.");
-      } else {
-        setSession(currentSession);
-        setAuthMessage("");
-      }
+      setSession(currentSession);
+      setAuthMessage("");
 
       setAuthReady(true);
     }
@@ -55,29 +66,8 @@ export default function App() {
       setAuthReady(true);
     });
 
-    const {
-      data: { subscription }
-    } = supabase.auth.onAuthStateChange(async (_event, nextSession) => {
-      if (!mounted) {
-        return;
-      }
-
-      const nextEmail = nextSession?.user?.email || "";
-      if (nextSession && !isAllowedAuthEmail(nextEmail)) {
-        await supabase.auth.signOut();
-        setSession(null);
-        setAuthMessage("This email is not allowed to access the portal.");
-        return;
-      }
-
-      setSession(nextSession);
-      setAuthMessage("");
-      setAuthReady(true);
-    });
-
     return () => {
       mounted = false;
-      subscription.unsubscribe();
     };
   }, []);
 
@@ -96,6 +86,9 @@ export default function App() {
   const latestEvent = useMemo(() => updates[0] || "No updates yet", [updates]);
 
   async function handleSignOut() {
+    clearPortalSession();
+    setSession(null);
+    setAuthMessage("");
     await supabase.auth.signOut();
   }
 
@@ -115,6 +108,11 @@ export default function App() {
         portalName="DTR Automation Admin Portal"
         description="Use an approved TESDA email to request an OTP and open the admin portal."
         errorMessage={authMessage}
+        onAuthenticated={(nextSession) => {
+          setSession(nextSession);
+          setAuthMessage("");
+          setAuthReady(true);
+        }}
       />
     );
   }

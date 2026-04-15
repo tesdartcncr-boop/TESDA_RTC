@@ -2,6 +2,7 @@ from fastapi import APIRouter, BackgroundTasks, HTTPException
 from pydantic import BaseModel, EmailStr
 
 from ..config import get_allowed_auth_emails
+from ..services.auth import create_portal_session
 from ..services.email_service import send_otp_email
 from ..services.otp_service import create_otp, verify_otp
 
@@ -59,10 +60,12 @@ async def verify_otp_endpoint(payload: OTPVerifyPayload) -> dict:
     raise HTTPException(status_code=400, detail="OTP code is required.")
   
   if verify_otp(email, otp_code):
+    portal_session = create_portal_session(email)
     return {
       "message": "OTP verified successfully",
       "verified": True,
-      "email": email
+      "email": email,
+      "portal_session": portal_session
     }
   else:
     raise HTTPException(status_code=401, detail="Invalid or expired OTP code.")

@@ -16,6 +16,7 @@ backend/**/*.pyc
 .env
 *.env
 !.env.example
+.env.deployed
 frontend_user/.env
 frontend_admin/.env
 backend/.env

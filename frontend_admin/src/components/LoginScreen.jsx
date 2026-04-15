@@ -1,11 +1,9 @@
-import { useMemo, useState } from "react";
-import { getAllowedAuthEmails, isAllowedAuthEmail } from "../services/auth";
+import { useState } from "react";
 import { API_BASE_URL } from "../services/api";
-import { supabase } from "../services/supabase";
+import { setPortalSession } from "../services/session";
 
-export default function LoginScreen({ portalName, description, errorMessage = "" }) {
-  const allowedEmails = useMemo(() => getAllowedAuthEmails(), []);
-  const [email, setEmail] = useState(allowedEmails[0] || "");
+export default function LoginScreen({ portalName, description, errorMessage = "", onAuthenticated }) {
+  const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
   const [status, setStatus] = useState(errorMessage || "Enter an approved TESDA email to request an OTP.");
   const [isSending, setIsSending] = useState(false);
@@ -15,8 +13,8 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
   async function requestOtp() {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (!isAllowedAuthEmail(normalizedEmail)) {
-      setStatus("Use one of the approved TESDA email addresses.");
+    if (!normalizedEmail) {
+      setStatus("Enter your TESDA email address.");
       return;
     }
 
@@ -48,8 +46,8 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
   async function verifyAndSignIn() {
     const normalizedEmail = email.trim().toLowerCase();
 
-    if (!isAllowedAuthEmail(normalizedEmail)) {
-      setStatus("Use one of the approved TESDA email addresses.");
+    if (!normalizedEmail) {
+      setStatus("Enter your TESDA email address.");
       return;
     }
 
@@ -75,17 +73,21 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
         throw new Error(verifyData.detail || "Invalid OTP code");
       }
 
-      // OTP verified, now sign in with Supabase using passwordless flow
-      const { error } = await supabase.auth.signInWithOtp({
-        email: normalizedEmail,
-        options: { shouldCreateUser: true }
-      });
-
-      if (error) {
-        throw error;
+      const portalSession = verifyData.portal_session;
+      if (!portalSession?.access_token) {
+        throw new Error("Login session could not be created.");
       }
 
-      setStatus("Signed in successfully.");
+      const nextSession = {
+        access_token: portalSession?.access_token,
+        expires_at: portalSession?.expires_at,
+        token_type: portalSession?.token_type || "bearer",
+        user: { email: verifyData.email || normalizedEmail }
+      };
+
+      setPortalSession(nextSession);
+      onAuthenticated?.(nextSession);
+      setStatus("Access granted.");
     } catch (error) {
       setStatus(error.message);
     } finally {
@@ -102,19 +104,11 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
           <p className="subtle">{description}</p>
         </div>
 
-        <div className="auth-email-list" aria-label="Approved login emails">
-          {allowedEmails.map((allowedEmail) => (
-            <span className="auth-chip" key={allowedEmail}>
-              {allowedEmail}
-            </span>
-          ))}
-        </div>
-
         <label className="auth-field">
           <span>Email address</span>
           <input
             type="email"
-            placeholder="Enter approved email"
+            placeholder="Enter your TESDA email"
             value={email}
             onChange={(event) => setEmail(event.target.value)}
           />
