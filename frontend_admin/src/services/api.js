@@ -1,6 +1,26 @@
 import { supabase } from "./supabase";
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+const FALLBACK_PRODUCTION_API_URL = "https://tesda-dtr-system-backend.onrender.com";
+
+function resolveApiBaseUrl() {
+  const configuredUrl = (
+    import.meta.env.VITE_BACKEND_API_URL || import.meta.env.VITE_API_BASE_URL || ""
+  )
+    .trim()
+    .replace(/\/$/, "");
+
+  if (import.meta.env.PROD) {
+    if (configuredUrl && !/localhost|127\.0\.0\.1/.test(configuredUrl)) {
+      return configuredUrl;
+    }
+
+    return FALLBACK_PRODUCTION_API_URL;
+  }
+
+  return configuredUrl || "http://localhost:8000";
+}
+
+const API_BASE_URL = resolveApiBaseUrl();
 
 async function getAccessToken() {
   const { data } = await supabase.auth.getSession();

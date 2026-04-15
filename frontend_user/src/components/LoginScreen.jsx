@@ -1,8 +1,7 @@
 import { useMemo, useState } from "react";
 import { getAllowedAuthEmails, isAllowedAuthEmail } from "../services/auth";
+import { API_BASE_URL } from "../services/api";
 import { supabase } from "../services/supabase";
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
 
 export default function LoginScreen({ portalName, description, errorMessage = "" }) {
   const allowedEmails = useMemo(() => getAllowedAuthEmails(), []);
