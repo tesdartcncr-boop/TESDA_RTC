@@ -4,7 +4,11 @@ from .config import settings
 
 
 def get_supabase_client() -> Client:
-  return create_client(settings.supabase_url, settings.supabase_service_role_key)
+  # Initialize client with anon key first
+  client = create_client(settings.supabase_url, settings.supabase_anon_key)
+  # Set service role key for privileged operations
+  client.postgrest.auth(settings.supabase_service_role_key)
+  return client
 
 
 supabase = get_supabase_client()
