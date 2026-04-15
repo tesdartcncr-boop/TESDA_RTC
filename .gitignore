@@ -1,0 +1,28 @@
+# Node
+node_modules/
+frontend_user/node_modules/
+frontend_admin/node_modules/
+backend/node_modules/
+
+# Python
+.venv/
+backend/.venv/
+backend/__pycache__/
+backend/**/*.pyc
+**/__pycache__/
+*.py[cod]
+
+# Environment
+.env
+*.env
+!.env.example
+frontend_user/.env
+frontend_admin/.env
+backend/.env
+
+# Build output
+frontend_user/dist/
+frontend_admin/dist/
+
+# Local task learning notes
+task/lessons.md

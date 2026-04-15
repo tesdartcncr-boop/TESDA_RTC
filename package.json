@@ -1,0 +1,13 @@
+{
+  "name": "dtr-automation-system",
+  "private": true,
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "concurrently -k -n USER,ADMIN,API \"npm --prefix frontend_user run dev\" \"npm --prefix frontend_admin run dev\" \"npm --prefix backend run dev\"",
+    "install:all": "npm --prefix frontend_user install && npm --prefix frontend_admin install && npm --prefix backend install",
+    "build": "npm --prefix frontend_user run build && npm --prefix frontend_admin run build"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

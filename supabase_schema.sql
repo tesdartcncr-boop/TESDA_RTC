@@ -1,0 +1,73 @@
+-- DTR Automation Schema for Supabase PostgreSQL
+-- Run this file first in Supabase SQL Editor.
+
+create extension if not exists pgcrypto;
+
+create table if not exists employees (
+  id bigserial primary key,
+  first_name text not null,
+  second_name text,
+  last_name text not null,
+  extension text,
+  name text not null,
+  category text not null check (category in ('regular', 'jo')),
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists employees_name_category_uq on employees (name, category);
+
+create table if not exists schedule_settings (
+  id bigserial primary key,
+  date date not null unique,
+  late_threshold time not null default '08:01',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists attendance (
+  id bigserial primary key,
+  employee_id bigint not null references employees(id) on delete cascade,
+  date date not null,
+  time_in text,
+  time_out text,
+  late_minutes integer not null default 0,
+  undertime_minutes integer not null default 0,
+  overtime_minutes integer not null default 0,
+  leave_type text check (leave_type in ('SL', 'VL', 'OB') or leave_type is null),
+  schedule_type text not null default 'A' check (schedule_type in ('A', 'B')),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (employee_id, date)
+);
+
+create index if not exists attendance_date_idx on attendance (date);
+create index if not exists attendance_employee_idx on attendance (employee_id);
+
+create table if not exists notifications (
+  id bigserial primary key,
+  message text not null,
+  audience text not null default 'all',
+  created_at timestamptz not null default now()
+);
+
+create table if not exists backup_logs (
+  id bigserial primary key,
+  filename text not null unique,
+  source text not null,
+  created_at timestamptz not null default now()
+);
+
+create or replace function set_updated_at()
+returns trigger
+language plpgsql
+as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$;
+
+drop trigger if exists attendance_set_updated_at on attendance;
+create trigger attendance_set_updated_at
+before update on attendance
+for each row
+execute function set_updated_at();
