@@ -1,7 +1,7 @@
 from datetime import date as Date
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 
 class EmployeeNameParts(BaseModel):
@@ -39,9 +39,26 @@ class AttendanceUpdate(BaseModel):
   schedule_type: Optional[str] = None
 
 
+class MasterSheetAttendanceUpsert(BaseModel):
+  employee_id: int
+  date: Date
+  time_in: Optional[str] = None
+  time_out: Optional[str] = None
+  leave_type: Optional[str] = None
+  schedule_type: str = "A"
+
+
 class ScheduleThresholdUpdate(BaseModel):
   date: Date
   late_threshold: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
+
+
+class AuthorizedEmailCreate(BaseModel):
+  email: EmailStr
+
+
+class AuthorizedEmailStatusUpdate(BaseModel):
+  enabled: bool
 
 
 class RestoreBackupRequest(BaseModel):

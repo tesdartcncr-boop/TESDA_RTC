@@ -8,6 +8,18 @@ from ..supabase_client import get_supabase_client
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 
+def translate_employee_error(error: Exception, action: str) -> HTTPException:
+  message = str(error).lower()
+
+  if "duplicate key value violates unique constraint" in message or "employees_name_category_uq" in message:
+    return HTTPException(status_code=409, detail="An employee with the same full name already exists in this category.")
+
+  if "null value in column" in message or "not-null" in message:
+    return HTTPException(status_code=400, detail="All required employee fields must be filled in.")
+
+  return HTTPException(status_code=500, detail=f"Failed to {action} employee.")
+
+
 @router.get("")
 def list_employees(category: str = "regular") -> list[dict]:
   supabase = get_supabase_client()
@@ -29,7 +41,11 @@ async def create_employee(payload: EmployeeCreate) -> dict:
   values = payload.model_dump(exclude={"employee_password"})
   values["employee_password_hash"] = hash_employee_password(payload.employee_password)
 
-  response = supabase.table("employees").insert(values).execute()
+  try:
+    response = supabase.table("employees").insert(values).execute()
+  except Exception as error:
+    raise translate_employee_error(error, "create") from error
+
   if not response.data:
     raise HTTPException(status_code=500, detail="Failed to create employee.")
 
@@ -45,7 +61,11 @@ async def update_employee(employee_id: int, payload: EmployeeUpdate) -> dict:
   if payload.employee_password and payload.employee_password.strip():
     values["employee_password_hash"] = hash_employee_password(payload.employee_password)
 
-  response = supabase.table("employees").update(values).eq("id", employee_id).execute()
+  try:
+    response = supabase.table("employees").update(values).eq("id", employee_id).execute()
+  except Exception as error:
+    raise translate_employee_error(error, "update") from error
+
   if not response.data:
     raise HTTPException(status_code=404, detail="Employee not found.")
 

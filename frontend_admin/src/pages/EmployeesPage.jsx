@@ -98,11 +98,40 @@ function buildEmployeePayload(parts, category) {
   };
 }
 
+function validateCreatePayload(parts) {
+  if (!parts.firstName.trim() || !parts.lastName.trim()) {
+    return "First and last name are required.";
+  }
+
+  if (!parts.employeePassword.trim()) {
+    return "Employee password is required.";
+  }
+
+  if (parts.employeePassword.trim().length < 4) {
+    return "Employee password must be at least 4 characters.";
+  }
+
+  return "";
+}
+
+function validateUpdatePayload(parts) {
+  if (!parts.firstName.trim() || !parts.lastName.trim()) {
+    return "First and last name are required.";
+  }
+
+  if (parts.employeePassword.trim() && parts.employeePassword.trim().length < 4) {
+    return "Employee password must be at least 4 characters.";
+  }
+
+  return "";
+}
+
 export default function EmployeesPage() {
   const [category, setCategory] = useState("regular");
   const [newNameParts, setNewNameParts] = useState(createEmptyNameParts());
   const [employees, setEmployees] = useState([]);
   const [draftNames, setDraftNames] = useState({});
+  const [visiblePasswords, setVisiblePasswords] = useState({ new: false });
   const [status, setStatus] = useState("Ready");
 
   async function loadEmployees() {
@@ -131,14 +160,17 @@ export default function EmployeesPage() {
     }));
   }
 
-  async function addEmployee() {
-    if (!newNameParts.firstName.trim() || !newNameParts.lastName.trim()) {
-      setStatus("First and last name are required.");
-      return;
-    }
+  function togglePasswordVisibility(key) {
+    setVisiblePasswords((prev) => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  }
 
-    if (!newNameParts.employeePassword.trim()) {
-      setStatus("Employee password is required.");
+  async function addEmployee() {
+    const validationError = validateCreatePayload(newNameParts);
+    if (validationError) {
+      setStatus(validationError);
       return;
     }
 
@@ -154,8 +186,9 @@ export default function EmployeesPage() {
   async function saveEmployee(employeeId) {
     const nameParts = draftNames[employeeId] || createEmptyNameParts();
 
-    if (!nameParts.firstName.trim() || !nameParts.lastName.trim()) {
-      setStatus("First and last name are required.");
+    const validationError = validateUpdatePayload(nameParts);
+    if (validationError) {
+      setStatus(validationError);
       return;
     }
 
@@ -229,13 +262,26 @@ export default function EmployeesPage() {
           </label>
           <label className="name-field name-field--password">
             <span>Password</span>
-            <input
-              className="name-input"
-              type="password"
-              placeholder="Assign employee password"
-              value={newNameParts.employeePassword}
-              onChange={(event) => setNewNameParts((prev) => ({ ...prev, employeePassword: event.target.value }))}
-            />
+            <p className="field-hint">At least 4 characters.</p>
+            <div className="password-field-row">
+              <input
+                className="name-input"
+                type={visiblePasswords.new ? "text" : "password"}
+                placeholder="Assign employee password"
+                minLength={4}
+                value={newNameParts.employeePassword}
+                onChange={(event) => setNewNameParts((prev) => ({ ...prev, employeePassword: event.target.value }))}
+              />
+              <button
+                type="button"
+                className="password-toggle"
+                onClick={() => togglePasswordVisibility("new")}
+                aria-pressed={visiblePasswords.new}
+                aria-label={visiblePasswords.new ? "Hide new employee password" : "Show new employee password"}
+              >
+                {visiblePasswords.new ? "Hide" : "Show"}
+              </button>
+            </div>
           </label>
           <button type="button" className="name-submit" onClick={addEmployee}>Add employee</button>
         </div>
@@ -286,13 +332,25 @@ export default function EmployeesPage() {
                   />
                 </td>
                 <td>
-                  <input
-                    className="name-input"
-                    type="password"
-                    placeholder="Leave blank to keep"
-                    value={draftNames[employee.id]?.employeePassword || ""}
-                    onChange={(event) => updateDraftName(employee.id, "employeePassword", event.target.value)}
-                  />
+                  <div className="password-field-row">
+                    <input
+                      className="name-input"
+                      type={visiblePasswords[employee.id] ? "text" : "password"}
+                      placeholder="Leave blank to keep"
+                      minLength={4}
+                      value={draftNames[employee.id]?.employeePassword || ""}
+                      onChange={(event) => updateDraftName(employee.id, "employeePassword", event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="password-toggle"
+                      onClick={() => togglePasswordVisibility(employee.id)}
+                      aria-pressed={Boolean(visiblePasswords[employee.id])}
+                      aria-label={visiblePasswords[employee.id] ? `Hide password for ${employee.name}` : `Show password for ${employee.name}`}
+                    >
+                      {visiblePasswords[employee.id] ? "Hide" : "Show"}
+                    </button>
+                  </div>
                 </td>
                 <td>{employee.category}</td>
                 <td className="actions-cell">

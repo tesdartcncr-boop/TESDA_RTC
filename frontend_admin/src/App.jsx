@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import LoginScreen from "./components/LoginScreen";
 import NavBar from "./components/NavBar";
 import BackupPage from "./pages/BackupPage";
+import AuthorizedEmailsPage from "./pages/AuthorizedEmailsPage";
 import EmployeesPage from "./pages/EmployeesPage";
 import MasterSheetPage from "./pages/MasterSheetPage";
 import ReportsPage from "./pages/ReportsPage";
@@ -14,6 +15,7 @@ const PAGE_COMPONENTS = {
   employees: <EmployeesPage />,
   master: <MasterSheetPage />,
   schedule: <ScheduleSettingsPage />,
+  authEmails: <AuthorizedEmailsPage />,
   reports: <ReportsPage />,
   backups: <BackupPage />
 };
@@ -30,22 +32,15 @@ export default function App() {
 
     async function initializeSession() {
       try {
-        const rawPortalSession = window.localStorage.getItem("dtr_portal_session");
-        if (rawPortalSession) {
-          const portalSession = JSON.parse(rawPortalSession);
-          const expiresAt = Number(portalSession?.expires_at || 0);
-
-          if (expiresAt && Date.now() / 1000 >= expiresAt) {
-            window.localStorage.removeItem("dtr_portal_session");
-          } else {
-            setSession(portalSession);
-            setAuthMessage("");
-            setAuthReady(true);
-            return;
-          }
+        const portalSession = getPortalSession();
+        if (portalSession) {
+          setSession(portalSession);
+          setAuthMessage("");
+          setAuthReady(true);
+          return;
         }
       } catch {
-        window.localStorage.removeItem("dtr_portal_session");
+        clearPortalSession();
       }
 
       const { data } = await supabase.auth.getSession();
@@ -122,12 +117,14 @@ export default function App() {
       <header className="admin-hero">
         <h1>DTR Automation Admin Portal</h1>
         <p>Manage employees, attendance history, reports, and backup lifecycle.</p>
-        <p className="event-pill">Realtime: {latestEvent}</p>
-        <div className="session-bar admin-session-bar">
-          <span>{session.user.email}</span>
-          <button type="button" className="secondary-btn" onClick={handleSignOut}>
-            Sign out
-          </button>
+        <div className="admin-hero-meta">
+          <p className="event-pill">Realtime: {latestEvent}</p>
+          <div className="session-bar admin-session-bar">
+            <span>{session.user.email}</span>
+            <button type="button" className="secondary-btn" onClick={handleSignOut}>
+              Sign out
+            </button>
+          </div>
         </div>
       </header>
 

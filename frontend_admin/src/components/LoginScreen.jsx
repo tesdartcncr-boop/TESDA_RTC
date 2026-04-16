@@ -125,7 +125,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
         </label>
 
         <div className="auth-actions">
-          <button type="button" onClick={requestOtp} disabled={isSending}>
+          <button type="button" className="primary-btn" onClick={requestOtp} disabled={isSending}>
             {isSending ? "Sending..." : isCodeSent ? "Resend OTP" : "Send OTP"}
           </button>
           <button type="button" className="secondary-btn" onClick={verifyAndSignIn} disabled={isVerifying || !isCodeSent}>

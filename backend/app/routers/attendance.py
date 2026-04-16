@@ -1,9 +1,13 @@
-from fastapi import APIRouter, HTTPException
+from datetime import date as Date, timedelta
 
-from ..schemas import AttendanceUpdate, ClockRequest
+from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
+
+from ..schemas import AttendanceUpdate, ClockRequest, MasterSheetAttendanceUpsert
+from ..services.report_service import export_master_sheet_xlsx
 from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
-from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_app_date, now_military_time
+from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_app_date, now_military_time, normalize_time_token
 from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -29,6 +33,179 @@ def _enrich_rows(rows: list[dict], employees: dict[int, dict]) -> list[dict]:
       }
     )
   return sorted(enriched, key=lambda item: item.get("employee_name", ""))
+
+
+def _parse_sheet_date(value: str) -> Date:
+  try:
+    return Date.fromisoformat(value)
+  except ValueError as error:
+    raise HTTPException(status_code=400, detail="Dates must use YYYY-MM-DD format.") from error
+
+
+def _format_sheet_title(start_date: Date, end_date: Date) -> str:
+  if start_date.year == end_date.year and start_date.month == end_date.month:
+    return f"{start_date.strftime('%B')} {start_date.day}-{end_date.day}, {start_date.year}"
+
+  return (
+    f"{start_date.strftime('%B')} {start_date.day}, {start_date.year} - "
+    f"{end_date.strftime('%B')} {end_date.day}, {end_date.year}"
+  )
+
+
+def _format_sheet_day(value: Date) -> dict:
+  return {
+    "date": value.isoformat(),
+    "label": f"{value.day}-{value.strftime('%b')}",
+    "weekday": value.strftime("%A"),
+    "is_weekend": value.weekday() >= 5,
+    "is_monday": value.weekday() == 0
+  }
+
+
+def _build_sheet_dates(start_date: Date, end_date: Date) -> list[dict]:
+  current = start_date
+  values: list[dict] = []
+
+  while current <= end_date:
+    values.append(_format_sheet_day(current))
+    current += timedelta(days=1)
+
+  return values
+
+
+def _normalize_sheet_token(value: str | None) -> str | None:
+  if value is None:
+    return None
+
+  token = value.strip()
+  if not token:
+    return None
+
+  normalized = normalize_time_token(token)
+  return normalized
+
+
+def _display_sheet_value(row: dict, field: str) -> str:
+  leave_type = (row.get("leave_type") or "").strip().upper() or None
+  value = row.get(field)
+
+  if field == "time_in":
+    if leave_type:
+      return leave_type
+    if is_leave_code(value):
+      return value or ""
+
+  if field == "time_out" and is_leave_code(value):
+    return value or ""
+
+  return value or ""
+
+
+def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
+  start_date = _parse_sheet_date(date_from)
+  end_date = _parse_sheet_date(date_to)
+  if start_date > end_date:
+    raise HTTPException(status_code=400, detail="From date must be earlier than or equal to to date.")
+
+  supabase = get_supabase_client()
+  employee_query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category").order("name")
+
+  if category in {"regular", "jo"}:
+    employee_query = employee_query.eq("category", category)
+
+  employees = employee_query.execute().data or []
+  employee_map = {employee["id"]: employee for employee in employees}
+  date_rows = _build_sheet_dates(start_date, end_date)
+
+  records: list[dict] = []
+  if employee_map:
+    attendance_rows = (
+      supabase.table("attendance")
+      .select("*")
+      .in_("employee_id", list(employee_map.keys()))
+      .gte("date", start_date.isoformat())
+      .lte("date", end_date.isoformat())
+      .execute()
+      .data
+      or []
+    )
+
+    for row in attendance_rows:
+      employee = employee_map.get(row["employee_id"], {})
+      records.append(
+        {
+          **row,
+          "employee_name": employee.get("name", "Unknown Employee"),
+          "category": employee.get("category", "unknown"),
+          "surname": (employee.get("last_name") or employee.get("name") or "Unknown").strip(),
+          "display_time_in": _display_sheet_value(row, "time_in"),
+          "display_time_out": _display_sheet_value(row, "time_out")
+        }
+      )
+
+  return {
+    "title": _format_sheet_title(start_date, end_date),
+    "date_from": start_date.isoformat(),
+    "date_to": end_date.isoformat(),
+    "dates": date_rows,
+    "employees": [
+      {
+        "id": employee["id"],
+        "name": employee.get("name", ""),
+        "surname": (employee.get("last_name") or employee.get("name") or "Unknown").strip(),
+        "category": employee.get("category", "unknown")
+      }
+      for employee in employees
+    ],
+    "records": sorted(records, key=lambda item: (item.get("date", ""), item.get("employee_name", "")))
+  }
+
+
+def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: dict | None = None) -> dict:
+  schedule_type = (payload.schedule_type or (current or {}).get("schedule_type") or "A").upper()
+  if schedule_type not in {"A", "B"}:
+    raise HTTPException(status_code=400, detail="Schedule type must be A or B.")
+
+  explicit_leave_type = (payload.leave_type or "").strip().upper() or None
+  if explicit_leave_type and not is_leave_code(explicit_leave_type):
+    raise HTTPException(status_code=400, detail="Leave type must be SL, VL, or OB.")
+
+  time_in_value = _normalize_sheet_token(payload.time_in)
+  time_out_value = _normalize_sheet_token(payload.time_out)
+
+  inferred_leave_type = None
+  if is_leave_code(time_in_value):
+    inferred_leave_type = time_in_value
+    time_in_value = None
+  if is_leave_code(time_out_value):
+    inferred_leave_type = inferred_leave_type or time_out_value
+    time_out_value = None
+
+  leave_type = explicit_leave_type or inferred_leave_type
+
+  if leave_type:
+    late_minutes = 0
+    undertime_minutes = 0
+    overtime_minutes = 0
+    normalized_in = time_in_value
+    normalized_out = time_out_value
+  else:
+    late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out = calculate_dtr_metrics(
+      schedule_type,
+      time_in_value,
+      time_out_value,
+      None
+    )
+
+  return {
+    "schedule_type": schedule_type,
+    "leave_type": leave_type,
+    "time_in": normalized_in,
+    "time_out": normalized_out,
+    "late_minutes": late_minutes,
+    "undertime_minutes": undertime_minutes,
+    "overtime_minutes": overtime_minutes
+  }
 
 
 @router.get("/daily")
@@ -109,6 +286,66 @@ def get_master_attendance(
   return sorted(enriched, key=lambda item: item.get("date", ""), reverse=True)
 
 
+@router.get("/master-sheet")
+def get_master_sheet(date_from: str, date_to: str, category: str = "all") -> dict:
+  return _build_master_sheet_context(date_from, date_to, category)
+
+
+@router.get("/master-sheet/export")
+def export_master_sheet(date_from: str, date_to: str, category: str = "all") -> StreamingResponse:
+  sheet_data = _build_master_sheet_context(date_from, date_to, category)
+  content = export_master_sheet_xlsx(sheet_data)
+  filename = f"master-sheet-{sheet_data['date_from']}-to-{sheet_data['date_to']}.xlsx"
+
+  return StreamingResponse(
+    iter([content]),
+    media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    headers={"Content-Disposition": f"attachment; filename={filename}"}
+  )
+
+
+@router.put("/master-sheet")
+async def upsert_master_sheet_record(payload: MasterSheetAttendanceUpsert) -> dict:
+  supabase = get_supabase_client()
+  employee = _get_employee(payload.employee_id)
+
+  current_response = (
+    supabase.table("attendance")
+    .select("*")
+    .eq("employee_id", payload.employee_id)
+    .eq("date", payload.date.isoformat())
+    .limit(1)
+    .execute()
+  )
+  current = current_response.data[0] if current_response.data else None
+
+  values = _resolve_master_sheet_values(payload, current)
+  if current is None and not any([values["time_in"], values["time_out"], values["leave_type"]]):
+    raise HTTPException(status_code=400, detail="Enter a time or leave before saving.")
+
+  record_values = {
+    "employee_id": payload.employee_id,
+    "date": payload.date.isoformat(),
+    **values
+  }
+
+  if current:
+    response = supabase.table("attendance").update(record_values).eq("id", current["id"]).execute()
+  else:
+    response = supabase.table("attendance").insert(record_values).execute()
+
+  if not response.data:
+    raise HTTPException(status_code=500, detail="Failed to save attendance record.")
+
+  row = response.data[0]
+  await publish_event(
+    "attendance.updated",
+    f"Attendance edited for {employee['name']} ({payload.date.isoformat()})",
+    row
+  )
+  return {**row, "employee_name": employee["name"], "category": employee["category"]}
+
+
 @router.post("/clock")
 async def clock_attendance(payload: ClockRequest) -> dict:
   supabase = get_supabase_client()
@@ -123,6 +360,9 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   schedule_type = (payload.schedule_type or "A").upper()
   leave_type = (payload.leave_type or "").strip().upper() or None
 
+  if leave_type and not is_leave_code(leave_type):
+    raise HTTPException(status_code=400, detail="Leave type must be SL, VL, or OB.")
+
   existing_response = (
     supabase.table("attendance")
     .select("*")
@@ -135,21 +375,14 @@ async def clock_attendance(payload: ClockRequest) -> dict:
 
   try:
     if leave_type:
-      late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
-        schedule_type,
-        leave_type,
-        leave_type,
-        leave_type
-      )
-
       values = {
         "employee_id": payload.employee_id,
         "date": target_date,
-        "time_in": normalized_in,
-        "time_out": normalized_out,
-        "late_minutes": late,
-        "undertime_minutes": undertime,
-        "overtime_minutes": overtime,
+        "time_in": None,
+        "time_out": None,
+        "late_minutes": 0,
+        "undertime_minutes": 0,
+        "overtime_minutes": 0,
         "leave_type": leave_type,
         "schedule_type": schedule_type
       }
@@ -250,22 +483,31 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
   leave_type = (payload.leave_type if payload.leave_type is not None else current.get("leave_type"))
   leave_type = (leave_type or "").strip().upper() or None
 
+  if leave_type and not is_leave_code(leave_type):
+    raise HTTPException(status_code=400, detail="Leave type must be SL, VL, or OB.")
+
   time_in = payload.time_in if payload.time_in is not None else current.get("time_in")
   time_out = payload.time_out if payload.time_out is not None else current.get("time_out")
 
-  if leave_type in {"SL", "VL", "OB"} and payload.time_in is None and payload.time_out is None:
-    time_in = leave_type
-    time_out = leave_type
+  time_in_value = (time_in or "").strip() or None
+  time_out_value = (time_out or "").strip() or None
 
-  try:
-    late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
-      schedule_type,
-      time_in,
-      time_out,
-      leave_type
-    )
-  except ValueError as error:
-    raise HTTPException(status_code=400, detail=str(error)) from error
+  if leave_type and not time_in_value and not time_out_value:
+    late = 0
+    undertime = 0
+    overtime = 0
+    normalized_in = None
+    normalized_out = None
+  else:
+    try:
+      late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
+        schedule_type,
+        time_in_value,
+        time_out_value,
+        None
+      )
+    except ValueError as error:
+      raise HTTPException(status_code=400, detail=str(error)) from error
 
   values = {
     "date": target_date,

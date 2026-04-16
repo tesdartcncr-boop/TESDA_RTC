@@ -5,6 +5,13 @@ function getCurrentMonth() {
   return new Date().toISOString().slice(0, 7);
 }
 
+function formatDuration(minutes) {
+  const totalMinutes = Math.max(Number(minutes) || 0, 0);
+  const hours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  return `${hours}:${String(remainingMinutes).padStart(2, "0")}`;
+}
+
 function downloadBlob(blob, filename) {
   const url = window.URL.createObjectURL(blob);
   const link = document.createElement("a");
@@ -71,8 +78,8 @@ export default function ReportsPage() {
               <th>Employee</th>
               <th>Category</th>
               <th>Days Worked</th>
-              <th>Total Late (min)</th>
-              <th>Total Undertime (min)</th>
+              <th>Total Late (h:mm)</th>
+              <th>Total Undertime (h:mm)</th>
             </tr>
           </thead>
           <tbody>
@@ -81,8 +88,8 @@ export default function ReportsPage() {
                 <td>{row.employee_name}</td>
                 <td>{row.category}</td>
                 <td>{row.days_worked}</td>
-                <td>{row.total_late_minutes}</td>
-                <td>{row.total_undertime_minutes ?? 0}</td>
+                <td>{formatDuration(row.total_late_minutes)}</td>
+                <td>{formatDuration(row.total_undertime_minutes)}</td>
               </tr>
             ))}
           </tbody>
@@ -93,7 +100,7 @@ export default function ReportsPage() {
       <ul className="report-list">
         {lateRows.map((row, index) => (
           <li key={`${row.employee_name}-${row.date}-${index}`}>
-            {row.date} | {row.employee_name} | {row.late_minutes} min late
+            {row.date} | {row.employee_name} | {formatDuration(row.late_minutes)} late
           </li>
         ))}
       </ul>

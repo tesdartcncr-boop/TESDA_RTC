@@ -12,7 +12,6 @@ from ..config import get_allowed_auth_emails, settings
 
 
 PROTECTED_PATH_PREFIXES = ("/attendance", "/employees", "/settings", "/reports", "/backups")
-PORTAL_SESSION_TTL_SECONDS = 60 * 60 * 12
 
 
 def _portal_secret() -> bytes:
@@ -35,7 +34,6 @@ def create_portal_session(email: str) -> dict:
   payload = {
     "email": normalized_email,
     "iat": now,
-    "exp": now + PORTAL_SESSION_TTL_SECONDS,
     "scope": "portal",
   }
   signing_input = f"{_base64url_encode(json.dumps(header, separators=(',', ':')).encode('utf-8'))}.{_base64url_encode(json.dumps(payload, separators=(',', ':')).encode('utf-8'))}"
@@ -45,7 +43,7 @@ def create_portal_session(email: str) -> dict:
     "access_token": f"{signing_input}.{_base64url_encode(signature)}",
     "token_type": "bearer",
     "email": normalized_email,
-    "expires_at": payload["exp"],
+    "expires_at": None,
   }
 
 
@@ -65,12 +63,11 @@ def verify_portal_session(access_token: str) -> dict:
     raise HTTPException(status_code=401, detail="Login expired. Please sign in again.") from error
 
   email = (payload.get("email") or "").strip().lower()
-  expires_at = int(payload.get("exp") or 0)
-  if not email or not expires_at or int(time.time()) >= expires_at:
+  if not email:
     raise HTTPException(status_code=401, detail="Login expired. Please sign in again.")
 
   allowed_emails = get_allowed_auth_emails()
-  if allowed_emails and email not in allowed_emails:
+  if email not in allowed_emails:
     raise HTTPException(status_code=403, detail="This account is not allowed to access the portals.")
 
   return payload
@@ -120,7 +117,7 @@ def verify_supabase_access_token(access_token: str) -> dict:
 
   email = (payload.get("email") or "").strip().lower()
   allowed_emails = get_allowed_auth_emails()
-  if allowed_emails and email not in allowed_emails:
+  if email not in allowed_emails:
     raise HTTPException(status_code=403, detail="This account is not allowed to access the portals.")
 
   return payload

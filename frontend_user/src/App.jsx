@@ -64,7 +64,7 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("regular");
   const [selectedDate, setSelectedDate] = useState(() => getManilaDate());
   const [selectedSchedule, setSelectedSchedule] = useState("A");
-  const [selectedLeaveType, setSelectedLeaveType] = useState("");
+  const [employeeSearch, setEmployeeSearch] = useState("");
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
   const [threshold, setThreshold] = useState("08:00");
@@ -102,22 +102,15 @@ export default function App() {
 
     async function initializeSession() {
       try {
-        const rawPortalSession = window.localStorage.getItem("dtr_portal_session");
-        if (rawPortalSession) {
-          const portalSession = JSON.parse(rawPortalSession);
-          const expiresAt = Number(portalSession?.expires_at || 0);
-
-          if (expiresAt && Date.now() / 1000 >= expiresAt) {
-            window.localStorage.removeItem("dtr_portal_session");
-          } else {
-            setSession(portalSession);
-            setAuthMessage("");
-            setAuthReady(true);
-            return;
-          }
+        const portalSession = getPortalSession();
+        if (portalSession) {
+          setSession(portalSession);
+          setAuthMessage("");
+          setAuthReady(true);
+          return;
         }
       } catch {
-        window.localStorage.removeItem("dtr_portal_session");
+        clearPortalSession();
       }
 
       const { data } = await supabase.auth.getSession();
@@ -197,14 +190,14 @@ export default function App() {
     };
   }, [selectedDate, activeCategory, session?.access_token]);
 
-  async function handleClock(employeeId, employeePassword) {
+  async function handleClock(employeeId, employeePassword, leaveType) {
     setStatus("Saving time record...");
     try {
       await api.clockAttendance({
         employee_id: employeeId,
         date: selectedDate,
         schedule_type: selectedSchedule,
-        leave_type: selectedLeaveType || null,
+        leave_type: leaveType,
         employee_password: employeePassword
       });
       await loadAttendance(selectedDate, activeCategory);
@@ -232,6 +225,18 @@ export default function App() {
   const activeCategorySummary = getCategorySummary(activeCategory);
   const statusTone = useMemo(() => getStatusTone(status), [status]);
   const attendanceByEmployeeId = useMemo(() => new Map(rows.map((row) => [row.employee_id, row])), [rows]);
+  const filteredEmployees = useMemo(() => {
+    const query = employeeSearch.trim().toLowerCase();
+
+    if (!query) {
+      return employees;
+    }
+
+    return employees.filter((employee) => (employee.name || "").toLowerCase().includes(query));
+  }, [employeeSearch, employees]);
+  const rosterCountLabel = employeeSearch.trim()
+    ? `Showing ${filteredEmployees.length} of ${employees.length} employees`
+    : `${employees.length} employees loaded`;
 
   async function handleSignOut() {
     clearPortalSession();
@@ -267,26 +272,37 @@ export default function App() {
 
   return (
     <main className="page">
-      <header className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Attendance dashboard</p>
+      <section className="surface dashboard-header">
+        <div className="dashboard-header__copy">
+          <p className="section-kicker">Attendance dashboard</p>
           <h1>DTR Automation User Portal</h1>
-          <p>
-            Click a name to open the password prompt, then record Time In or Time Out for the active Philippine date.
-            The roster stays in one clean column so the action is fast to scan.
+          <p className="hint">
+            Search a name, switch between Regular and JO, and tap the employee to record Time In or Time Out.
           </p>
         </div>
 
-        <aside className={`hero-spotlight hero-spotlight--${statusTone}`}>
-          <span>Active roster</span>
-          <strong>{activeCategoryTitle}</strong>
-          <p>{activeCategorySummary}</p>
-          <div className="hero-metric">
-            <span>Employees loaded</span>
-            <strong>{employees.length}</strong>
+        <div className="dashboard-header__meta">
+          <div className={`status-pill status-pill--${statusTone}`}>{status}</div>
+          <div className="dashboard-stats">
+            <article className="dashboard-stat">
+              <span>Active roster</span>
+              <strong>{activeCategoryTitle}</strong>
+              <p>{activeCategorySummary}</p>
+            </article>
+            <article className="dashboard-stat">
+              <span>Employees loaded</span>
+              <strong>{employees.length}</strong>
+              <p>{rosterCountLabel}</p>
+            </article>
           </div>
-        </aside>
-      </header>
+          <div className="session-bar dashboard-session-bar">
+            <span>{session.user.email}</span>
+            <button type="button" className="secondary-btn" onClick={handleSignOut}>
+              Sign out
+            </button>
+          </div>
+        </div>
+      </section>
 
       <section className="surface controls">
         <div className="controls-head">
@@ -297,18 +313,32 @@ export default function App() {
               The selector below keeps the page centered on Regular or JO employees without resetting the date.
             </p>
           </div>
-
-          <div className="session-bar">
-            <span>{session.user.email}</span>
-            <button type="button" className="secondary-btn" onClick={handleSignOut}>
-              Sign out
-            </button>
-          </div>
         </div>
 
-        <div className={`status-pill status-pill--${statusTone}`}>{status}</div>
+        <div className="roster-toolbar">
+          <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
 
-        <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
+          <label className="roster-search">
+            <span>Find employee</span>
+            <input
+              type="search"
+              placeholder="Type a name to filter the roster"
+              value={employeeSearch}
+              onChange={(event) => setEmployeeSearch(event.target.value)}
+            />
+          </label>
+
+          <button
+            type="button"
+            className="secondary-btn roster-clear"
+            onClick={() => setEmployeeSearch("")}
+            disabled={!employeeSearch.trim()}
+          >
+            Clear
+          </button>
+        </div>
+
+        <p className="roster-count">{rosterCountLabel}</p>
 
         <div className="filters">
           <label>
@@ -320,15 +350,6 @@ export default function App() {
             <select value={selectedSchedule} onChange={(event) => setSelectedSchedule(event.target.value)}>
               <option value="A">A (08:00-17:00)</option>
               <option value="B">B (08:00-19:00)</option>
-            </select>
-          </label>
-          <label>
-            Leave Type
-            <select value={selectedLeaveType} onChange={(event) => setSelectedLeaveType(event.target.value)}>
-              <option value="">None</option>
-              <option value="SL">SL</option>
-              <option value="VL">VL</option>
-              <option value="OB">OB</option>
             </select>
           </label>
         </div>
@@ -357,7 +378,12 @@ export default function App() {
           </div>
           <p className="hint">Click a name, enter that employee’s password, and the system will record the current time entry.</p>
         </div>
-        <EmployeeGrid employees={employees} attendanceByEmployeeId={attendanceByEmployeeId} onClock={handleClock} />
+        <EmployeeGrid
+          employees={filteredEmployees}
+          attendanceByEmployeeId={attendanceByEmployeeId}
+          onClock={handleClock}
+          emptyMessage={employeeSearch.trim() ? "No employees match your search." : "No employees found for this category."}
+        />
       </section>
 
       <section className="surface">

@@ -11,7 +11,6 @@ function normalizeSession(session) {
 
   const email = (session.user?.email || session.email || "").trim().toLowerCase();
   const accessToken = session.access_token || session.portal_token || "";
-  const expiresAt = Number(session.expires_at || session.exp || 0) || null;
 
   if (!email || !accessToken) {
     return null;
@@ -19,7 +18,7 @@ function normalizeSession(session) {
 
   return {
     access_token: accessToken,
-    expires_at: expiresAt,
+    expires_at: null,
     token_type: session.token_type || "bearer",
     user: { email }
   };
@@ -38,11 +37,6 @@ export function getPortalSession() {
 
     const session = normalizeSession(JSON.parse(raw));
     if (!session) {
-      window.localStorage.removeItem(PORTAL_SESSION_KEY);
-      return null;
-    }
-
-    if (session.expires_at && Date.now() / 1000 >= session.expires_at) {
       window.localStorage.removeItem(PORTAL_SESSION_KEY);
       return null;
     }

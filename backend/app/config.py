@@ -31,10 +31,7 @@ def get_allowed_auth_emails() -> list[str]:
 
     supabase = get_supabase_client()
     response = supabase.table("auth_allowed_emails").select("email").eq("enabled", True).order("email").execute()
-    emails = [row["email"].strip().lower() for row in (response.data or []) if row.get("email")]
-
-    if emails:
-      return emails
+    return [row["email"].strip().lower() for row in (response.data or []) if row.get("email")]
   except Exception:
     # Fall back to the env list if the table is missing or unavailable.
     pass
