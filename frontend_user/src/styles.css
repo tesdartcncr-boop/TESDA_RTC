@@ -496,6 +496,49 @@ p {
   backdrop-filter: blur(16px);
 }
 
+.user-page {
+  width: min(1120px, 96vw);
+}
+
+.user-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+}
+
+.user-header__copy {
+  display: grid;
+  gap: 0.1rem;
+}
+
+.user-header h1 {
+  margin: 0;
+  font-size: clamp(1.7rem, 3vw, 2.6rem);
+  line-height: 0.96;
+}
+
+.user-session-bar {
+  width: auto;
+  justify-content: space-between;
+  padding: 0.55rem 0.75rem;
+  margin-left: auto;
+}
+
+.user-workspace {
+  display: grid;
+  gap: 1rem;
+}
+
+.user-workspace .employee-grid {
+  margin-top: 0.25rem;
+}
+
+.user-clock-controls {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 .dashboard-header {
   display: grid;
   grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.9fr);
@@ -584,6 +627,10 @@ p {
   max-width: 62ch;
 }
 
+.section-head--compact {
+  margin-bottom: 0.5rem;
+}
+
 .status-pill {
   align-self: start;
   padding: 0.6rem 0.9rem;
@@ -661,6 +708,13 @@ p {
   margin: -0.2rem 0 0;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.employee-roster-panel {
+  display: grid;
+  gap: 0.6rem;
+  padding-top: 0.35rem;
+  border-top: 1px solid rgba(30, 38, 44, 0.08);
 }
 
 .tab {
@@ -821,12 +875,22 @@ select:hover {
   display: flex;
   align-items: center;
   justify-content: flex-start;
-  min-height: 72px;
-  padding: 1rem 1.1rem;
+  min-height: 84px;
+  padding: 1rem 1.1rem 1rem 1.35rem;
   font: inherit;
   color: inherit;
   text-align: left;
   cursor: pointer;
+  position: relative;
+  overflow: hidden;
+}
+
+.employee-card--button::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0.45rem;
+  background: linear-gradient(180deg, var(--accent), #e27442);
 }
 
 .employee-card:hover {
@@ -874,8 +938,12 @@ select:hover {
 
 .employee-name {
   font-family: "Fraunces", Georgia, serif;
-  font-size: clamp(1.05rem, 2vw, 1.35rem);
-  line-height: 1.1;
+  font-size: clamp(1.22rem, 2.25vw, 1.8rem);
+  line-height: 1.05;
+  font-weight: 900;
+  color: var(--accent-strong);
+  letter-spacing: 0.02em;
+  word-break: break-word;
 }
 
 .primary-btn {
@@ -1046,7 +1114,80 @@ td input {
   }
 }
 
+@media (max-width: 1024px) {
+  .user-page {
+    width: min(980px, 97vw);
+  }
+
+  .user-header {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .user-session-bar {
+    width: 100%;
+  }
+
+  .roster-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .user-clock-controls {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .page {
+    width: min(980px, 97vw);
+  }
+
+  .dashboard-header {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .roster-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .roster-clear {
+    min-height: 3.6rem;
+  }
+
+  .employee-roster-panel {
+    gap: 0.75rem;
+  }
+
+  .filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .status-strip .status-card:last-child {
+    grid-column: 1 / -1;
+  }
+}
+
 @media (max-width: 768px) {
+  .user-page {
+    width: min(720px, 95vw);
+  }
+
+  .user-header {
+    padding: 1rem;
+  }
+
+  .user-header h1 {
+    font-size: clamp(1.55rem, 7vw, 2.25rem);
+  }
+
   .page {
     width: min(720px, 95vw);
   }
@@ -1058,6 +1199,12 @@ td input {
   .controls-head,
   .section-head {
     flex-direction: column;
+  }
+
+  .filters,
+  .status-strip,
+  .dashboard-stats {
+    grid-template-columns: 1fr;
   }
 
   .tab-row {
@@ -1085,5 +1232,9 @@ td input {
 
   .auth-actions {
     grid-template-columns: 1fr;
+  }
+
+  .employee-roster-panel {
+    padding-top: 0.2rem;
   }
 }

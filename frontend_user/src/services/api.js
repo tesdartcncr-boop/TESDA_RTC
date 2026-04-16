@@ -2,6 +2,10 @@ import { supabase } from "./supabase";
 import { clearPortalSession, getPortalSession } from "./session";
 
 const FALLBACK_PRODUCTION_API_URL = "https://tesda-dtr-system-backend.onrender.com";
+const EMPLOYEE_CACHE_PREFIX = "dtr_employee_cache:v1:";
+const EMPLOYEE_CACHE_TTL_MS = 10 * 60 * 1000;
+const knownEmployeeCategories = new Set(["regular", "jo"]);
+const inMemoryEmployeeCache = new Map();
 
 function resolveApiBaseUrl() {
   const configuredUrl = (
@@ -47,6 +51,79 @@ function formatErrorDetail(detail) {
   }
 
   return "";
+}
+
+function getEmployeeCacheKey(category) {
+  return `${EMPLOYEE_CACHE_PREFIX}${category}`;
+}
+
+function readEmployeeCache(category) {
+  const memoryEntry = inMemoryEmployeeCache.get(category);
+  if (memoryEntry && Date.now() - memoryEntry.savedAt < EMPLOYEE_CACHE_TTL_MS) {
+    return memoryEntry.data;
+  }
+
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(getEmployeeCacheKey(category));
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      window.localStorage.removeItem(getEmployeeCacheKey(category));
+      return null;
+    }
+
+    const savedAt = Number(parsed.savedAt || 0);
+    if (!savedAt || Date.now() - savedAt >= EMPLOYEE_CACHE_TTL_MS) {
+      window.localStorage.removeItem(getEmployeeCacheKey(category));
+      return null;
+    }
+
+    const data = Array.isArray(parsed.data) ? parsed.data : [];
+    inMemoryEmployeeCache.set(category, { data, savedAt });
+    return data;
+  } catch {
+    window.localStorage.removeItem(getEmployeeCacheKey(category));
+    return null;
+  }
+}
+
+function writeEmployeeCache(category, data) {
+  const payload = { savedAt: Date.now(), data };
+  inMemoryEmployeeCache.set(category, payload);
+
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(getEmployeeCacheKey(category), JSON.stringify(payload));
+  } catch {
+    // Ignore cache write failures.
+  }
+}
+
+function clearEmployeeCache(category) {
+  if (category) {
+    inMemoryEmployeeCache.delete(category);
+  } else {
+    inMemoryEmployeeCache.clear();
+  }
+
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  const categories = category ? [category] : Array.from(knownEmployeeCategories);
+  for (const entryCategory of categories) {
+    window.localStorage.removeItem(getEmployeeCacheKey(entryCategory));
+  }
 }
 
 async function getAccessToken() {
@@ -100,8 +177,24 @@ async function request(path, options = {}) {
 }
 
 export const api = {
-  getEmployees(category) {
-    return request(`/employees?category=${category}`);
+  getEmployees(category, options = {}) {
+    const normalizedCategory = category || "regular";
+    const forceRefresh = Boolean(options.forceRefresh);
+
+    if (!forceRefresh) {
+      const cachedEmployees = readEmployeeCache(normalizedCategory);
+      if (cachedEmployees) {
+        return Promise.resolve(cachedEmployees);
+      }
+    }
+
+    return request(`/employees?category=${normalizedCategory}`).then((data) => {
+      writeEmployeeCache(normalizedCategory, data);
+      return data;
+    });
+  },
+  clearEmployeeCache(category) {
+    clearEmployeeCache(category);
   },
   getDailyAttendance(date, category) {
     return request(`/attendance/daily?date=${date}&category=${category}`);
