@@ -34,6 +34,7 @@ def _enrich_rows(rows: list[dict], employees: dict[int, dict]) -> list[dict]:
 
 @router.get("/daily")
 def get_daily_attendance(date: str, category: str = "regular") -> list[dict]:
+  supabase = get_supabase_client()
   employee_query = supabase.table("employees").select("id,name,category")
   if category in {"regular", "jo"}:
     employee_query = employee_query.eq("category", category)
@@ -65,6 +66,7 @@ def get_master_attendance(
   employee: str = "",
   search: str = ""
 ) -> list[dict]:
+  supabase = get_supabase_client()
   employee_query = supabase.table("employees").select("id,name,category")
 
   if category in {"regular", "jo"}:
@@ -110,6 +112,7 @@ def get_master_attendance(
 
 @router.post("/clock")
 async def clock_attendance(payload: ClockRequest) -> dict:
+  supabase = get_supabase_client()
   employee = _get_employee(payload.employee_id)
   if not employee.get("employee_password_hash"):
     raise HTTPException(status_code=400, detail="Employee password is not set.")
@@ -239,6 +242,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
 
 @router.put("/{attendance_id}")
 async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> dict:
+  supabase = get_supabase_client()
   current_response = supabase.table("attendance").select("*").eq("id", attendance_id).limit(1).execute()
   if not current_response.data:
     raise HTTPException(status_code=404, detail="Attendance record not found.")

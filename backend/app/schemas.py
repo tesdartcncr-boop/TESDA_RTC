@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date as Date
 from typing import Optional
 
 from pydantic import BaseModel, Field
@@ -25,14 +25,14 @@ class EmployeeUpdate(EmployeeNameParts):
 
 class ClockRequest(BaseModel):
   employee_id: int
-  date: Optional[date] = None
+  date: Optional[Date] = None
   schedule_type: str = "A"
   leave_type: Optional[str] = None
   employee_password: str = Field(min_length=1, max_length=120)
 
 
 class AttendanceUpdate(BaseModel):
-  date: Optional[date] = None
+  date: Optional[Date] = None
   time_in: Optional[str] = None
   time_out: Optional[str] = None
   leave_type: Optional[str] = None
@@ -40,7 +40,7 @@ class AttendanceUpdate(BaseModel):
 
 
 class ScheduleThresholdUpdate(BaseModel):
-  date: date
+  date: Date
   late_threshold: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
 
 
