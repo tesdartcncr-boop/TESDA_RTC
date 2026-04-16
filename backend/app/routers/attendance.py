@@ -5,7 +5,6 @@ from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
 from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_app_date, now_military_time
 from ..supabase_client import get_supabase_client
-from .settings import get_late_threshold_for_date
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
 
@@ -133,7 +132,6 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     .execute()
   )
   existing = existing_response.data[0] if existing_response.data else None
-  late_threshold = get_late_threshold_for_date(target_date)
 
   try:
     if leave_type:
@@ -141,7 +139,6 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         schedule_type,
         leave_type,
         leave_type,
-        late_threshold,
         leave_type
       )
 
@@ -182,7 +179,6 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         existing.get("schedule_type") or schedule_type,
         existing.get("time_in"),
         now_time,
-        late_threshold,
         existing.get("leave_type")
       )
 
@@ -205,7 +201,6 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         schedule_type,
         now_time,
         None,
-        late_threshold,
         None
       )
       values = {
@@ -262,14 +257,11 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
     time_in = leave_type
     time_out = leave_type
 
-  late_threshold = get_late_threshold_for_date(target_date)
-
   try:
     late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
       schedule_type,
       time_in,
       time_out,
-      late_threshold,
       leave_type
     )
   except ValueError as error:

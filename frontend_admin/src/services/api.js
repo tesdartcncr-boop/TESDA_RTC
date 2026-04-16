@@ -99,9 +99,6 @@ export const api = {
   getLateReport(month) {
     return request(`/reports/late-report?month=${month}`);
   },
-  getOvertimeReport(month) {
-    return request(`/reports/overtime-report?month=${month}`);
-  },
   exportReport(format, month) {
     return request(`/reports/export?format=${format}&month=${month}`);
   },

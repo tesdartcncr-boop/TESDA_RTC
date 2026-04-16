@@ -70,7 +70,7 @@ export default function MasterSheetPage() {
               <th>Time In</th>
               <th>Time Out</th>
               <th>Late</th>
-              <th>OT</th>
+              <th>Undertime</th>
               <th>Leave</th>
             </tr>
           </thead>
@@ -83,7 +83,7 @@ export default function MasterSheetPage() {
                 <td>{row.time_in || "-"}</td>
                 <td>{row.time_out || "-"}</td>
                 <td>{row.late_minutes ?? 0}</td>
-                <td>{row.overtime_minutes ?? 0}</td>
+                <td>{row.undertime_minutes ?? 0}</td>
                 <td>{row.leave_type || "-"}</td>
               </tr>
             ))}

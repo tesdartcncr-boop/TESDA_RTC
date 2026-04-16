@@ -67,7 +67,7 @@ export default function App() {
   const [selectedLeaveType, setSelectedLeaveType] = useState("");
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
-  const [threshold, setThreshold] = useState("08:01");
+  const [threshold, setThreshold] = useState("08:00");
   const [status, setStatus] = useState("Ready");
   const [updates, setUpdates] = useState([]);
   const manilaDateRef = useRef(getManilaDate());

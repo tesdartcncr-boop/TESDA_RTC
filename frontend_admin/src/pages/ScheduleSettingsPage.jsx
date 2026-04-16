@@ -7,7 +7,7 @@ function getTodayDate() {
 
 export default function ScheduleSettingsPage() {
   const [date, setDate] = useState(getTodayDate());
-  const [threshold, setThreshold] = useState("08:01");
+  const [threshold, setThreshold] = useState("08:00");
   const [status, setStatus] = useState("Ready");
 
   async function loadThreshold(activeDate) {

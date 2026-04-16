@@ -56,11 +56,13 @@ def build_monthly_summary(rows: list[dict]) -> list[dict]:
         "category": row["category"],
         "days_worked": 0,
         "total_late_minutes": 0,
+        "total_undertime_minutes": 0,
         "total_overtime_minutes": 0
       }
 
     summary[key]["days_worked"] += 1
     summary[key]["total_late_minutes"] += int(row.get("late_minutes") or 0)
+    summary[key]["total_undertime_minutes"] += int(row.get("undertime_minutes") or 0)
     summary[key]["total_overtime_minutes"] += int(row.get("overtime_minutes") or 0)
 
   return sorted(summary.values(), key=lambda item: item["employee_name"])
@@ -103,7 +105,6 @@ def export_csv(rows: list[dict]) -> bytes:
     "Time Out",
     "Late",
     "Undertime",
-    "Overtime",
     "Leave",
     "Schedule"
   ])
@@ -117,7 +118,6 @@ def export_csv(rows: list[dict]) -> bytes:
       row.get("time_out"),
       row.get("late_minutes"),
       row.get("undertime_minutes"),
-      row.get("overtime_minutes"),
       row.get("leave_type"),
       row.get("schedule_type")
     ])
@@ -138,7 +138,6 @@ def export_xlsx(rows: list[dict]) -> bytes:
     "Time Out",
     "Late",
     "Undertime",
-    "Overtime",
     "Leave",
     "Schedule"
   ])
@@ -152,7 +151,6 @@ def export_xlsx(rows: list[dict]) -> bytes:
       row.get("time_out"),
       row.get("late_minutes"),
       row.get("undertime_minutes"),
-      row.get("overtime_minutes"),
       row.get("leave_type"),
       row.get("schedule_type")
     ])

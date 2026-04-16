@@ -18,20 +18,17 @@ export default function ReportsPage() {
   const [month, setMonth] = useState(getCurrentMonth());
   const [summary, setSummary] = useState([]);
   const [lateRows, setLateRows] = useState([]);
-  const [overtimeRows, setOvertimeRows] = useState([]);
   const [status, setStatus] = useState("Ready");
 
   async function loadReports() {
     setStatus("Loading reports...");
     try {
-      const [monthlySummary, lateReport, overtimeReport] = await Promise.all([
+      const [monthlySummary, lateReport] = await Promise.all([
         api.getMonthlySummary(month),
-        api.getLateReport(month),
-        api.getOvertimeReport(month)
+        api.getLateReport(month)
       ]);
       setSummary(monthlySummary);
       setLateRows(lateReport);
-      setOvertimeRows(overtimeReport);
       setStatus("Ready");
     } catch (error) {
       setStatus(error.message);
@@ -75,7 +72,7 @@ export default function ReportsPage() {
               <th>Category</th>
               <th>Days Worked</th>
               <th>Total Late (min)</th>
-              <th>Total OT (min)</th>
+              <th>Total Undertime (min)</th>
             </tr>
           </thead>
           <tbody>
@@ -85,7 +82,7 @@ export default function ReportsPage() {
                 <td>{row.category}</td>
                 <td>{row.days_worked}</td>
                 <td>{row.total_late_minutes}</td>
-                <td>{row.total_overtime_minutes}</td>
+                <td>{row.total_undertime_minutes ?? 0}</td>
               </tr>
             ))}
           </tbody>
@@ -97,15 +94,6 @@ export default function ReportsPage() {
         {lateRows.map((row, index) => (
           <li key={`${row.employee_name}-${row.date}-${index}`}>
             {row.date} | {row.employee_name} | {row.late_minutes} min late
-          </li>
-        ))}
-      </ul>
-
-      <h3>Overtime Report</h3>
-      <ul className="report-list">
-        {overtimeRows.map((row, index) => (
-          <li key={`${row.employee_name}-${row.date}-${index}`}>
-            {row.date} | {row.employee_name} | {row.overtime_minutes} min overtime
           </li>
         ))}
       </ul>

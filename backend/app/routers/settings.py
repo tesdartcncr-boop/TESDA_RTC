@@ -5,7 +5,7 @@ from ..services.realtime import publish_event
 from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/settings", tags=["settings"])
-DEFAULT_LATE_THRESHOLD = "08:01"
+DEFAULT_LATE_THRESHOLD = "08:00"
 
 
 def get_late_threshold_for_date(date_value: str) -> str:

@@ -5,8 +5,8 @@ from ..config import settings
 
 LEAVE_CODES = {"SL", "VL", "OB"}
 SCHEDULE_DEFINITIONS = {
-  "A": {"start": "08:00", "end": "17:00"},
-  "B": {"start": "08:00", "end": "19:00"}
+  "A": {"start": "08:00", "end": "17:00", "required_minutes": 480, "break_minutes": 60},
+  "B": {"start": "08:00", "end": "19:00", "required_minutes": 600, "break_minutes": 60}
 }
 
 
@@ -53,18 +53,24 @@ def to_minutes(token: str | None) -> int | None:
   return int(hours) * 60 + int(minutes)
 
 
-def get_schedule_window(schedule_type: str | None) -> tuple[int, int]:
+def get_schedule_details(schedule_type: str | None) -> tuple[int, int, int, int]:
   selected = SCHEDULE_DEFINITIONS.get((schedule_type or "A").upper(), SCHEDULE_DEFINITIONS["A"])
-  start_minutes = to_minutes(selected["start"])
-  end_minutes = to_minutes(selected["end"])
-  return start_minutes or 480, end_minutes or 1020
+  start_minutes = to_minutes(selected["start"]) or 480
+  end_minutes = to_minutes(selected["end"]) or 1020
+  break_minutes = int(selected.get("break_minutes") or 60)
+  required_minutes = int(selected.get("required_minutes") or max(end_minutes - start_minutes - break_minutes, 0))
+  return start_minutes, end_minutes, required_minutes, break_minutes
+
+
+def get_schedule_window(schedule_type: str | None) -> tuple[int, int]:
+  start_minutes, end_minutes, _, _ = get_schedule_details(schedule_type)
+  return start_minutes, end_minutes
 
 
 def calculate_dtr_metrics(
   schedule_type: str,
   time_in: str | None,
   time_out: str | None,
-  late_threshold: str,
   leave_type: str | None
 ) -> tuple[int, int, int, str | None, str | None]:
   normalized_in = normalize_time_token(time_in)
@@ -81,16 +87,16 @@ def calculate_dtr_metrics(
 
   time_in_minutes = to_minutes(normalized_in)
   time_out_minutes = to_minutes(normalized_out)
-  threshold_minutes = to_minutes(late_threshold) or 481
-  _, schedule_end = get_schedule_window(schedule_type)
+  schedule_start, _, required_minutes, break_minutes = get_schedule_details(schedule_type)
 
-  late_minutes = max((time_in_minutes or threshold_minutes) - threshold_minutes, 0)
+  late_minutes = max((time_in_minutes or schedule_start) - schedule_start, 0)
 
   undertime_minutes = 0
-  overtime_minutes = 0
-  # Undertime and overtime are computed once time-out is available.
-  if time_out_minutes is not None:
-    undertime_minutes = max(schedule_end - time_out_minutes, 0)
-    overtime_minutes = max(time_out_minutes - schedule_end, 0)
+  if time_in_minutes is not None and time_out_minutes is not None:
+    credited_start = max(time_in_minutes, schedule_start)
+    gross_work_minutes = max(time_out_minutes - credited_start, 0)
+    credited_work_minutes = max(gross_work_minutes - break_minutes, 0)
+    undertime_minutes = max(required_minutes - credited_work_minutes, 0)
 
+  overtime_minutes = 0
   return late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out

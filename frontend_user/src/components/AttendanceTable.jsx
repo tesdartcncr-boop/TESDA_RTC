@@ -13,7 +13,6 @@ export default function AttendanceTable({ rows, onCellUpdate }) {
             <th scope="col">Time Out</th>
             <th scope="col">Late</th>
             <th scope="col">Undertime</th>
-            <th scope="col">Overtime</th>
             <th scope="col">Leave Type</th>
             <th scope="col">Schedule Type</th>
           </tr>
@@ -38,7 +37,6 @@ export default function AttendanceTable({ rows, onCellUpdate }) {
               </td>
               <td>{row.late_minutes ?? 0}</td>
               <td>{row.undertime_minutes ?? 0}</td>
-              <td>{row.overtime_minutes ?? 0}</td>
               <td>
                 <input
                   aria-label={`Leave type for ${row.employee_name}`}
