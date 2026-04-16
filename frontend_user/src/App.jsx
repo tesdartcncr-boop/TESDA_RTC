@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import AttendanceTable from "./components/AttendanceTable";
 import EmployeeGrid from "./components/EmployeeGrid";
 import LoginScreen from "./components/LoginScreen";
@@ -8,9 +8,31 @@ import { clearPortalSession, getPortalSession } from "./services/session";
 import { supabase } from "./services/supabase";
 import { connectRealtime } from "./services/socket";
 
-function getTodayDate() {
-  const now = new Date();
-  return now.toISOString().split("T")[0];
+const MANILA_TIME_ZONE = "Asia/Manila";
+const MANILA_OFFSET_MS = 8 * 60 * 60 * 1000;
+
+function getManilaDateParts(referenceDate = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: MANILA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(referenceDate);
+
+  return Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+}
+
+function getManilaDate(referenceDate = new Date()) {
+  const values = getManilaDateParts(referenceDate);
+
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+function getMillisecondsUntilNextManilaMidnight(referenceDate = new Date()) {
+  const values = getManilaDateParts(referenceDate);
+  const nextMidnightUtc = Date.UTC(Number(values.year), Number(values.month) - 1, Number(values.day) + 1, 0, 0, 0) - MANILA_OFFSET_MS;
+
+  return Math.max(nextMidnightUtc - referenceDate.getTime(), 1_000);
 }
 
 function getCategoryTitle(category) {
@@ -40,7 +62,7 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
   const [activeCategory, setActiveCategory] = useState("regular");
-  const [selectedDate, setSelectedDate] = useState(getTodayDate());
+  const [selectedDate, setSelectedDate] = useState(() => getManilaDate());
   const [selectedSchedule, setSelectedSchedule] = useState("A");
   const [selectedLeaveType, setSelectedLeaveType] = useState("");
   const [employees, setEmployees] = useState([]);
@@ -48,6 +70,32 @@ export default function App() {
   const [threshold, setThreshold] = useState("08:01");
   const [status, setStatus] = useState("Ready");
   const [updates, setUpdates] = useState([]);
+  const manilaDateRef = useRef(getManilaDate());
+
+  useEffect(() => {
+    const syncManilaDate = () => {
+      const nextManilaDate = getManilaDate();
+
+      if (nextManilaDate === manilaDateRef.current) {
+        return;
+      }
+
+      const previousManilaDate = manilaDateRef.current;
+      manilaDateRef.current = nextManilaDate;
+
+      setSelectedDate((currentDate) => (currentDate === previousManilaDate ? nextManilaDate : currentDate));
+    };
+
+    let timeoutId;
+
+    const scheduleNextSync = () => {
+      syncManilaDate();
+      timeoutId = window.setTimeout(scheduleNextSync, getMillisecondsUntilNextManilaMidnight());
+    };
+
+    timeoutId = window.setTimeout(scheduleNextSync, getMillisecondsUntilNextManilaMidnight());
+    return () => window.clearTimeout(timeoutId);
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -163,6 +211,7 @@ export default function App() {
       setStatus("Time record saved");
     } catch (error) {
       setStatus(error.message);
+      throw error;
     }
   }
 
@@ -182,6 +231,7 @@ export default function App() {
   const activeCategoryTitle = getCategoryTitle(activeCategory);
   const activeCategorySummary = getCategorySummary(activeCategory);
   const statusTone = useMemo(() => getStatusTone(status), [status]);
+  const attendanceByEmployeeId = useMemo(() => new Map(rows.map((row) => [row.employee_id, row])), [rows]);
 
   async function handleSignOut() {
     clearPortalSession();
@@ -222,8 +272,8 @@ export default function App() {
           <p className="eyebrow">Attendance dashboard</p>
           <h1>DTR Automation User Portal</h1>
           <p>
-            Tap once for Time In, then tap again for Time Out. The refreshed layout keeps the roster switch and live
-            status easy to scan.
+            Click a name to open the password prompt, then record Time In or Time Out for the active Philippine date.
+            The roster stays in one clean column so the action is fast to scan.
           </p>
         </div>
 
@@ -303,11 +353,11 @@ export default function App() {
         <div className="section-head">
           <div>
             <p className="section-kicker">Action cards</p>
-            <h2>Employee Cards</h2>
+            <h2>Employee Names</h2>
           </div>
-          <p className="hint">Tap an employee to write a time entry for the active date and schedule.</p>
+          <p className="hint">Click a name, enter that employee’s password, and the system will record the current time entry.</p>
         </div>
-        <EmployeeGrid employees={employees} onClock={handleClock} />
+        <EmployeeGrid employees={employees} attendanceByEmployeeId={attendanceByEmployeeId} onClock={handleClock} />
       </section>
 
       <section className="surface">

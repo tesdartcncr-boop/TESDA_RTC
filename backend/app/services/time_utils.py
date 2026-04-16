@@ -14,6 +14,10 @@ def now_military_time() -> str:
   return datetime.now(ZoneInfo(settings.app_timezone)).strftime("%H:%M")
 
 
+def now_app_date() -> str:
+  return datetime.now(ZoneInfo(settings.app_timezone)).date().isoformat()
+
+
 def normalize_time_token(value: str | None) -> str | None:
   if value is None:
     return None

@@ -658,6 +658,10 @@ select:hover {
   gap: 0.85rem;
 }
 
+.employee-grid--single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .employee-card {
   border: 1px solid rgba(30, 38, 44, 0.08);
   background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(249, 244, 236, 0.9));
@@ -671,10 +675,30 @@ select:hover {
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
+.employee-card--button {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  min-height: 72px;
+  padding: 1rem 1.1rem;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
 .employee-card:hover {
   transform: translateY(-3px);
   border-color: rgba(199, 93, 50, 0.16);
   box-shadow: 0 18px 34px rgba(24, 31, 36, 0.1);
+}
+
+.employee-card--button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+  transform: none;
+  box-shadow: 0 12px 24px rgba(24, 31, 36, 0.06);
 }
 
 .employee-card__copy {
@@ -707,6 +731,12 @@ select:hover {
   text-transform: uppercase;
 }
 
+.employee-name {
+  font-family: "Fraunces", Georgia, serif;
+  font-size: clamp(1.05rem, 2vw, 1.35rem);
+  line-height: 1.1;
+}
+
 .primary-btn {
   width: 100%;
   border: 0;
@@ -721,10 +751,70 @@ select:hover {
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
 }
 
+.primary-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.72;
+  transform: none;
+  filter: none;
+  box-shadow: none;
+}
+
 .primary-btn:hover {
   transform: translateY(-1px);
   box-shadow: 0 18px 30px rgba(199, 93, 50, 0.32);
   filter: saturate(1.05);
+}
+
+.clock-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(21, 25, 28, 0.52);
+  backdrop-filter: blur(6px);
+  overflow-y: auto;
+}
+
+.clock-modal {
+  width: min(460px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  display: grid;
+  gap: 1rem;
+  padding: 1.25rem;
+  border: 1px solid rgba(30, 38, 44, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 250, 243, 0.98);
+  box-shadow: var(--shadow);
+}
+
+.clock-modal__copy {
+  display: grid;
+  gap: 0.4rem;
+}
+
+.clock-modal__copy h3 {
+  margin: 0;
+  font-size: 1.75rem;
+}
+
+.clock-modal__error {
+  margin: 0;
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.clock-modal__actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.clock-modal__actions .primary-btn,
+.clock-modal__actions .secondary-btn {
+  width: 100%;
 }
 
 .table-wrap {

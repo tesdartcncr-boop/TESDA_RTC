@@ -1,11 +1,9 @@
-from datetime import date
-
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import AttendanceUpdate, ClockRequest
 from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
-from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_military_time
+from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_app_date, now_military_time
 from ..supabase_client import get_supabase_client
 from .settings import get_late_threshold_for_date
 
@@ -119,7 +117,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   if not verify_employee_password(payload.employee_password, employee.get("employee_password_hash")):
     raise HTTPException(status_code=401, detail="Invalid employee password.")
 
-  target_date = (payload.date or date.today()).isoformat()
+  target_date = payload.date.isoformat() if payload.date else now_app_date()
   schedule_type = (payload.schedule_type or "A").upper()
   leave_type = (payload.leave_type or "").strip().upper() or None
 
