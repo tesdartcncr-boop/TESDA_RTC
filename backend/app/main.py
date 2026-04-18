@@ -10,6 +10,7 @@ from .config import get_allowed_origins, settings
 from .routers import attendance, backups, employees, otp, reports, settings as settings_router
 from .services.auth import PROTECTED_PATH_PREFIXES, extract_bearer_token, verify_supabase_access_token
 from .services.backup_service import create_backup_snapshot
+from .services.cache_revision import build_cache_revision
 from .services.realtime import manager, publish_event
 from .supabase_client import init_supabase
 
@@ -23,10 +24,14 @@ api.include_router(backups.router)
 api.include_router(otp.router)
 
 scheduler = BackgroundScheduler(timezone=settings.app_timezone)
+PUBLIC_PATHS = {"/cache-revision", "/settings/cache-revision"}
 
 
 @api.middleware("http")
 async def require_auth_for_protected_routes(request, call_next):
+  if request.url.path in PUBLIC_PATHS:
+    return await call_next(request)
+
   if request.method != "OPTIONS" and any(request.url.path.startswith(prefix) for prefix in PROTECTED_PATH_PREFIXES):
     token = extract_bearer_token(request.headers.get("Authorization"))
     try:
@@ -89,6 +94,11 @@ async def shutdown() -> None:
 @api.get("/")
 def root() -> dict:
   return {"message": "DTR Automation API is running"}
+
+
+@api.get("/cache-revision")
+def cache_revision() -> dict:
+  return {"revision": build_cache_revision()}
 
 
 @api.get("/health")

@@ -50,6 +50,7 @@ class MasterSheetAttendanceUpsert(BaseModel):
 
 class ScheduleThresholdUpdate(BaseModel):
   date: Date
+  schedule_type: Optional[str] = Field(default=None, pattern="^(A|B)$")
   late_threshold: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
 
 

@@ -1,4 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
+import ScheduleOverridePanel from "../components/ScheduleOverridePanel";
 import { api } from "../services/api";
 
 const MANILA_TIME_ZONE = "Asia/Manila";
@@ -46,9 +47,10 @@ function getMonthRange(monthValue) {
   };
 }
 
-function buildMonthOptions(referenceDate = new Date(), totalMonths = 36) {
+function buildMonthOptions(referenceDate = new Date(), monthsBack = 36, monthsForward = 36) {
   const values = getManilaDateParts(referenceDate);
-  const startDate = new Date(Date.UTC(Number(values.year), Number(values.month) - totalMonths, 1, 12, 0, 0));
+  const startDate = new Date(Date.UTC(Number(values.year), Number(values.month) - monthsBack, 1, 12, 0, 0));
+  const totalMonths = monthsBack + monthsForward + 1;
 
   return Array.from({ length: totalMonths }, (_, index) => {
     const date = new Date(Date.UTC(startDate.getUTCFullYear(), startDate.getUTCMonth() + index, 1, 12, 0, 0));
@@ -117,6 +119,25 @@ function composeEmployeeFirstName(employee, fallback = "N/A") {
   }
 
   return `${firstName} ${secondName}`.trim();
+}
+
+function composeEmployeeSignatureName(employee, fallback = "N/A") {
+  const firstName = (employee.first_name || "").trim();
+  const lastName = (employee.last_name || employee.surname || "").trim();
+
+  if (firstName && lastName) {
+    return `${firstName} ${lastName}`.trim();
+  }
+
+  if (firstName) {
+    return firstName;
+  }
+
+  if (lastName) {
+    return lastName;
+  }
+
+  return formatPlaceholder(employee.display_name || employee.name, fallback);
 }
 
 function getEmployeeOffice(employee) {
@@ -233,6 +254,7 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
   const lastName = formatPlaceholder((employee.surname || employee.last_name || employee.name || employee.display_name || "").trim().toUpperCase());
   const displayName = formatPlaceholder((employee.display_name || employee.name || "").trim().toUpperCase());
   const firstName = composeEmployeeFirstName(employee, "N/A").toUpperCase();
+  const signatureName = composeEmployeeSignatureName(employee, "N/A").toUpperCase();
   const office = formatPlaceholder(getEmployeeOffice(employee));
 
   return (
@@ -318,7 +340,7 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
           </p>
           <div className="master-sheet-surname-sheet__signatures">
             <div>
-              <strong>{firstName}</strong>
+              <strong>{signatureName}</strong>
               <span>Name/Signature</span>
             </div>
             <div>
@@ -341,6 +363,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
   const isLoadingSheet = sheetState.status.startsWith("Loading");
   const [sheetView, setSheetView] = useState("master");
   const [selectedSurnameEmployeeId, setSelectedSurnameEmployeeId] = useState(null);
+  const [scheduleEditorDate, setScheduleEditorDate] = useState(null);
 
   const recordsByKey = useMemo(() => {
     return Object.fromEntries((sheetState.records || []).map((record) => [buildRecordKey(record.employee_id, record.date), record]));
@@ -536,6 +559,14 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     }
   }
 
+  function openScheduleEditor(date) {
+    setScheduleEditorDate(date);
+  }
+
+  function closeScheduleEditor() {
+    setScheduleEditorDate(null);
+  }
+
   return (
     <section className="card master-sheet-panel">
       <header className="master-sheet-panel__header">
@@ -547,6 +578,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
             Range: {formatDisplayDate(dateRange.date_from)} to {formatDisplayDate(dateRange.date_to)}
           </p>
           <p className="subtle">Status: {sheetState.status}</p>
+          <p className="subtle">Click a date to edit that day's schedule and late threshold.</p>
         </div>
         <button type="button" onClick={exportExcel}>Export Excel</button>
       </header>
@@ -587,7 +619,15 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
               {sheetState.dates.map((dateInfo) => (
                 <tr key={dateInfo.date} className={dateInfo.is_weekend ? "sheet-weekend-row" : ""}>
                   <td className={`master-sheet-date-col ${dateInfo.is_monday ? "is-monday" : dateInfo.is_weekend ? "is-weekend" : ""}`}>
-                    {dateInfo.label}
+                    <button
+                      type="button"
+                      className="master-sheet-date-button"
+                      onClick={() => openScheduleEditor(dateInfo.date)}
+                      aria-label={`Edit schedule and late settings for ${formatDisplayDate(dateInfo.date)}`}
+                      title="Click to edit schedule and late settings"
+                    >
+                      {dateInfo.label}
+                    </button>
                   </td>
                   <td className={`master-sheet-day-col ${dateInfo.is_monday ? "is-monday" : dateInfo.is_weekend ? "is-weekend" : ""}`}>
                     {dateInfo.weekday}
@@ -658,6 +698,17 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
           </div>
         </section>
       )}
+
+      {scheduleEditorDate ? (
+        <ScheduleOverridePanel
+          isModal
+          initialDate={scheduleEditorDate}
+          title="Change Schedule"
+          description={`Editing ${formatDisplayDate(scheduleEditorDate)}. Saving recalculates every employee on that date.`}
+          saveLabel="Save Changes"
+          onClose={closeScheduleEditor}
+        />
+      ) : null}
 
       <div className="master-sheet-view-switcher">
         <p className="subtle">Sheet tabs</p>

@@ -1,0 +1,178 @@
+import { createPortal } from "react-dom";
+import { useEffect, useState } from "react";
+import { api } from "../services/api";
+
+const MANILA_TIME_ZONE = "Asia/Manila";
+
+function getManilaDate(referenceDate = new Date()) {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: MANILA_TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit"
+  }).formatToParts(referenceDate);
+
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+}
+
+export default function ScheduleOverridePanel({
+  title = "Schedule Override",
+  description = "Set the schedule format and late threshold for one date.",
+  saveLabel = "Save Override",
+  className = "",
+  onSaved = null,
+  initialDate,
+  isModal = false,
+  onClose = null
+}) {
+  const [date, setDate] = useState(() => initialDate || getManilaDate());
+  const [scheduleType, setScheduleType] = useState("A");
+  const [lateThreshold, setLateThreshold] = useState("08:00");
+  const [status, setStatus] = useState("Ready");
+  const [hasOverride, setHasOverride] = useState(false);
+
+  useEffect(() => {
+    setDate(initialDate || getManilaDate());
+  }, [initialDate]);
+
+  useEffect(() => {
+    let mounted = true;
+
+    async function loadSchedule(activeDate) {
+      setStatus("Loading schedule...");
+
+      try {
+        const data = await api.getScheduleSettings(activeDate);
+        if (!mounted) {
+          return;
+        }
+
+        setScheduleType(data.schedule_type || "A");
+        setLateThreshold(data.late_threshold || "08:00");
+        setHasOverride(Boolean(data.has_override));
+        setStatus(data.has_override ? "Override loaded" : "Using default schedule");
+      } catch (error) {
+        if (mounted) {
+          setStatus(error.message);
+        }
+      }
+    }
+
+    loadSchedule(date);
+
+    return () => {
+      mounted = false;
+    };
+  }, [date]);
+
+  useEffect(() => {
+    if (!isModal) {
+      return undefined;
+    }
+
+    function handleEscape(event) {
+      if (event.key === "Escape" && typeof onClose === "function") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [isModal, onClose]);
+
+  function handleClose() {
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  }
+
+  async function saveSchedule() {
+    setStatus("Saving schedule...");
+
+    try {
+      const data = await api.setScheduleSettings({
+        date,
+        schedule_type: scheduleType,
+        late_threshold: lateThreshold
+      });
+
+      setScheduleType(data.schedule_type || scheduleType);
+      setLateThreshold(data.late_threshold || lateThreshold);
+      setHasOverride(Boolean(data.has_override));
+      setStatus(`Schedule saved for ${date}`);
+
+      if (typeof onSaved === "function") {
+        await onSaved(data);
+      }
+
+      if (isModal) {
+        handleClose();
+      }
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
+  const panel = (
+    <section className={`card schedule-override-card ${isModal ? "schedule-override-card--modal" : ""} ${className}`.trim()}>
+      <header className="schedule-override-card__header">
+        <div>
+          <p className="section-kicker">Day rule</p>
+          <h3>{title}</h3>
+          <p className="subtle">{description}</p>
+        </div>
+        <div className="schedule-override-card__header-actions">
+          <div className="status-pill status-pill--live">{hasOverride ? "Override active" : "Default schedule"}</div>
+          {isModal ? (
+            <button type="button" className="secondary-btn schedule-override-card__close" onClick={handleClose}>
+              Close
+            </button>
+          ) : null}
+        </div>
+      </header>
+
+      <p className="subtle">Status: {status}</p>
+
+      <div className="toolbar schedule-override-card__toolbar">
+        <label>
+          Date
+          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+        </label>
+        <label>
+          Schedule Format
+          <select value={scheduleType} onChange={(event) => setScheduleType(event.target.value)}>
+            <option value="A">A (08:00-17:00)</option>
+            <option value="B">B (08:00-19:00)</option>
+          </select>
+        </label>
+        <label>
+          Late Threshold
+          <input type="time" value={lateThreshold} onChange={(event) => setLateThreshold(event.target.value)} />
+        </label>
+        <button type="button" onClick={saveSchedule}>
+          {saveLabel}
+        </button>
+      </div>
+
+      <p className="hint">Saving recalculates every attendance row for that date and refreshes the master sheet cache.</p>
+    </section>
+  );
+
+  if (!isModal) {
+    return panel;
+  }
+
+  if (typeof document === "undefined" || !document.body) {
+    return panel;
+  }
+
+  return createPortal(
+    <div className="schedule-override-modal" role="presentation" onClick={handleClose}>
+      <div role="presentation" onClick={(event) => event.stopPropagation()}>
+        {panel}
+      </div>
+    </div>,
+    document.body
+  );
+}

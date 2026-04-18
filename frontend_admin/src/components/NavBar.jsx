@@ -3,8 +3,7 @@ const NAV_ITEMS = [
   { id: "master", label: "Master Sheet" },
   { id: "schedule", label: "Schedule Settings" },
   { id: "authEmails", label: "Authorized Emails" },
-  { id: "reports", label: "Reports" },
-  { id: "backups", label: "Backup Center" }
+  { id: "reports", label: "Reports" }
 ];
 
 export default function NavBar({ activePage, onChange }) {

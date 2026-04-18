@@ -297,6 +297,22 @@ def _compose_employee_first_name(employee: dict, fallback: str = "N/A") -> str:
   return f"{first_name} {second_name}".strip()
 
 
+def _compose_employee_signature_name(employee: dict, fallback: str = "N/A") -> str:
+  first_name = (employee.get("first_name") or "").strip()
+  last_name = (employee.get("last_name") or employee.get("surname") or "").strip()
+
+  if first_name and last_name:
+    return f"{first_name} {last_name}".strip()
+
+  if first_name:
+    return first_name
+
+  if last_name:
+    return last_name
+
+  return _display_placeholder(employee.get("display_name") or employee.get("name"), fallback)
+
+
 def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tuple[int, int]:
   end_column = 7
   title_fill = PatternFill("solid", fgColor="FFFFFF")
@@ -629,7 +645,7 @@ def _write_employee_sheet(sheet, employee: dict, dates: list[dict], records: lis
   footer_start_row = data_start_row + len(detail_rows) + 2
   resolved_footer_data = {
     **(footer_data or {}),
-    "left_name": (footer_data or {}).get("left_name") or _compose_employee_first_name(employee, "N/A").upper(),
+    "left_name": (footer_data or {}).get("left_name") or _compose_employee_signature_name(employee, "N/A").upper(),
     "right_name": (footer_data or {}).get("right_name"),
     "right_title": (footer_data or {}).get("right_title"),
     "statement": (footer_data or {}).get("statement")

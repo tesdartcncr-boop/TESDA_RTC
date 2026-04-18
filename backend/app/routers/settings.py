@@ -1,6 +1,8 @@
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import AuthorizedEmailCreate, AuthorizedEmailStatusUpdate, ScheduleThresholdUpdate
+from ..services.cache_revision import build_cache_revision
+from ..services.schedule_settings import get_schedule_display_values, normalize_late_threshold, recalculate_attendance_for_date, upsert_schedule_setting
 from ..services.realtime import publish_event
 from ..supabase_client import get_supabase_client
 
@@ -13,19 +15,7 @@ def normalize_email(value: str) -> str:
 
 
 def get_late_threshold_for_date(date_value: str) -> str:
-  supabase = get_supabase_client()
-  response = (
-    supabase.table("schedule_settings")
-    .select("late_threshold")
-    .eq("date", date_value)
-    .limit(1)
-    .execute()
-  )
-
-  if not response.data:
-    return DEFAULT_LATE_THRESHOLD
-
-  return response.data[0].get("late_threshold") or DEFAULT_LATE_THRESHOLD
+  return get_schedule_display_values(date_value).get("late_threshold") or DEFAULT_LATE_THRESHOLD
 
 
 @router.get("/auth-emails")
@@ -112,29 +102,36 @@ async def update_authorized_email(email_id: int, payload: AuthorizedEmailStatusU
 
 @router.get("/schedule-threshold")
 def get_schedule_threshold(date: str) -> dict:
+  return get_schedule_display_values(date)
+
+
+@router.get("/cache-revision")
+def get_cache_revision() -> dict:
   return {
-    "date": date,
-    "late_threshold": get_late_threshold_for_date(date)
+    "revision": build_cache_revision()
   }
 
 
 @router.put("/schedule-threshold")
 async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
-  supabase = get_supabase_client()
-  values = {
-    "date": payload.date.isoformat(),
-    "late_threshold": payload.late_threshold
+  try:
+    saved = upsert_schedule_setting(payload.date.isoformat(), payload.schedule_type, payload.late_threshold)
+    updated_rows = recalculate_attendance_for_date(payload.date.isoformat(), saved["schedule_type"], saved.get("late_threshold"))
+  except ValueError as error:
+    raise HTTPException(status_code=400, detail=str(error)) from error
+
+  result = {
+    "date": saved["date"],
+    "schedule_type": saved.get("schedule_type") or "A",
+    "late_threshold": normalize_late_threshold(saved.get("late_threshold")) or DEFAULT_LATE_THRESHOLD,
+    "has_override": True,
+    "updated_count": len(updated_rows)
   }
-  (
-    supabase.table("schedule_settings")
-    .upsert(values, on_conflict="date")
-    .execute()
-  )
 
   await publish_event(
-    "settings.threshold.updated",
-    f"Late threshold set to {payload.late_threshold} on {payload.date.isoformat()}",
-    values
+    "attendance.updated",
+    f"Schedule updated for {payload.date.isoformat()} ({result['schedule_type']}, late {result['late_threshold']}); recalculated {result['updated_count']} attendance rows.",
+    result
   )
 
-  return values
+  return result

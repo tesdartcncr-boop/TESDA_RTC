@@ -7,6 +7,15 @@ const EMPLOYEE_CACHE_TTL_MS = 10 * 60 * 1000;
 const knownEmployeeCategories = new Set(["regular", "jo"]);
 const inMemoryEmployeeCache = new Map();
 
+async function getCacheRevision() {
+  try {
+    const data = await request("/cache-revision");
+    return String(data?.revision || "");
+  } catch {
+    return "";
+  }
+}
+
 function resolveApiBaseUrl() {
   const configuredUrl = (
     import.meta.env.VITE_BACKEND_API_URL || import.meta.env.VITE_API_BASE_URL || ""
@@ -57,9 +66,9 @@ function getEmployeeCacheKey(category) {
   return `${EMPLOYEE_CACHE_PREFIX}${category}`;
 }
 
-function readEmployeeCache(category) {
+function readEmployeeCache(category, revision = "") {
   const memoryEntry = inMemoryEmployeeCache.get(category);
-  if (memoryEntry && Date.now() - memoryEntry.savedAt < EMPLOYEE_CACHE_TTL_MS) {
+  if (memoryEntry && memoryEntry.revision === revision && Date.now() - memoryEntry.savedAt < EMPLOYEE_CACHE_TTL_MS) {
     return memoryEntry.data;
   }
 
@@ -79,6 +88,12 @@ function readEmployeeCache(category) {
       return null;
     }
 
+    if ((parsed.revision || "") !== revision) {
+      window.localStorage.removeItem(getEmployeeCacheKey(category));
+      inMemoryEmployeeCache.delete(category);
+      return null;
+    }
+
     const savedAt = Number(parsed.savedAt || 0);
     if (!savedAt || Date.now() - savedAt >= EMPLOYEE_CACHE_TTL_MS) {
       window.localStorage.removeItem(getEmployeeCacheKey(category));
@@ -86,17 +101,18 @@ function readEmployeeCache(category) {
     }
 
     const data = Array.isArray(parsed.data) ? parsed.data : [];
-    inMemoryEmployeeCache.set(category, { data, savedAt });
+    inMemoryEmployeeCache.set(category, { data, savedAt, revision: parsed.revision || revision });
     return data;
   } catch {
     window.localStorage.removeItem(getEmployeeCacheKey(category));
+    inMemoryEmployeeCache.delete(category);
     return null;
   }
 }
 
-function writeEmployeeCache(category, data) {
-  const payload = { savedAt: Date.now(), data };
-  inMemoryEmployeeCache.set(category, payload);
+function writeEmployeeCache(category, data, revision = "") {
+  const payload = { savedAt: Date.now(), revision, data };
+  inMemoryEmployeeCache.set(category, { ...payload, data });
 
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
     return;
@@ -181,16 +197,18 @@ export const api = {
     const normalizedCategory = category || "regular";
     const forceRefresh = Boolean(options.forceRefresh);
 
-    if (!forceRefresh) {
-      const cachedEmployees = readEmployeeCache(normalizedCategory);
-      if (cachedEmployees) {
-        return Promise.resolve(cachedEmployees);
+    return getCacheRevision().then((revision) => {
+      if (!forceRefresh) {
+        const cachedEmployees = readEmployeeCache(normalizedCategory, revision);
+        if (cachedEmployees) {
+          return Promise.resolve(cachedEmployees);
+        }
       }
-    }
 
-    return request(`/employees?category=${normalizedCategory}`).then((data) => {
-      writeEmployeeCache(normalizedCategory, data);
-      return data;
+      return request(`/employees?category=${normalizedCategory}`).then((data) => {
+        writeEmployeeCache(normalizedCategory, data, revision);
+        return data;
+      });
     });
   },
   clearEmployeeCache(category) {
@@ -198,6 +216,9 @@ export const api = {
   },
   getDailyAttendance(date, category) {
     return request(`/attendance/daily?date=${date}&category=${category}`);
+  },
+  getScheduleSettings(date) {
+    return request(`/settings/schedule-threshold?date=${date}`);
   },
   clockAttendance(payload) {
     return request("/attendance/clock", {

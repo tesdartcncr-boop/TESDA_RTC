@@ -29,7 +29,7 @@ def normalize_time_token(value: str | None) -> str | None:
   if token in LEAVE_CODES:
     return token
 
-  for pattern in ("%H:%M", "%I:%M %p", "%I:%M%p"):
+  for pattern in ("%H:%M", "%H:%M:%S", "%I:%M %p", "%I:%M:%S %p", "%I:%M%p", "%I:%M:%S%p"):
     try:
       return datetime.strptime(token, pattern).strftime("%H:%M")
     except ValueError:
@@ -71,7 +71,8 @@ def calculate_dtr_metrics(
   schedule_type: str,
   time_in: str | None,
   time_out: str | None,
-  leave_type: str | None
+  leave_type: str | None,
+  late_threshold: str | None = None
 ) -> tuple[int, int, int, str | None, str | None]:
   normalized_in = normalize_time_token(time_in)
   normalized_out = normalize_time_token(time_out)
@@ -88,8 +89,11 @@ def calculate_dtr_metrics(
   time_in_minutes = to_minutes(normalized_in)
   time_out_minutes = to_minutes(normalized_out)
   schedule_start, _, required_minutes, break_minutes = get_schedule_details(schedule_type)
+  late_threshold_minutes = to_minutes(late_threshold)
+  if late_threshold_minutes is None:
+    late_threshold_minutes = schedule_start
 
-  late_minutes = max((time_in_minutes or schedule_start) - schedule_start, 0)
+  late_minutes = max((time_in_minutes or late_threshold_minutes) - late_threshold_minutes, 0)
 
   undertime_minutes = 0
   if time_in_minutes is not None and time_out_minutes is not None:

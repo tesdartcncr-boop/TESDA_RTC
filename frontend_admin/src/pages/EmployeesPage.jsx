@@ -84,8 +84,9 @@ function composeEmployeeName(parts) {
     .join(" ");
 }
 
-function buildEmployeePayload(parts, category) {
+function buildEmployeePayload(parts, category, fallbackPassword = null) {
   const name = composeEmployeeName(parts);
+  const employeePassword = parts.employeePassword.trim() || fallbackPassword || null;
 
   return {
     first_name: parts.firstName.trim(),
@@ -94,7 +95,7 @@ function buildEmployeePayload(parts, category) {
     extension: parts.extension.trim() || null,
     name,
     category,
-    employee_password: parts.employeePassword.trim() || null
+    employee_password: employeePassword
   };
 }
 
@@ -103,11 +104,7 @@ function validateCreatePayload(parts) {
     return "First and last name are required.";
   }
 
-  if (!parts.employeePassword.trim()) {
-    return "Employee password is required.";
-  }
-
-  if (parts.employeePassword.trim().length < 4) {
+  if (parts.employeePassword.trim() && parts.employeePassword.trim().length < 4) {
     return "Employee password must be at least 4 characters.";
   }
 
@@ -175,7 +172,7 @@ export default function EmployeesPage() {
     }
 
     try {
-      await api.createEmployee(buildEmployeePayload(newNameParts, category));
+      await api.createEmployee(buildEmployeePayload(newNameParts, category, "1234"));
       setNewNameParts(createEmptyNameParts());
       await loadEmployees();
     } catch (error) {
@@ -264,7 +261,7 @@ export default function EmployeesPage() {
           </label>
           <label className="name-field name-field--password">
             <span>Password</span>
-            <p className="field-hint">At least 4 characters.</p>
+            <p className="field-hint">Leave blank to use 1234. Otherwise, use at least 4 characters.</p>
             <div className="password-field-row">
               <input
                 className="name-input"

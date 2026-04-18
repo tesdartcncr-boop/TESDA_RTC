@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import LoginScreen from "./components/LoginScreen";
 import NavBar from "./components/NavBar";
-import BackupPage from "./pages/BackupPage";
 import AuthorizedEmailsPage from "./pages/AuthorizedEmailsPage";
 import EmployeesPage from "./pages/EmployeesPage";
 import MasterSheetPage from "./pages/MasterSheetPage";
@@ -19,12 +18,12 @@ const PAGE_DETAILS = {
   },
   master: {
     label: "Master Sheet",
-    summary: "Edit month-based attendance with cached Regular and JO views.",
+    summary: "Edit month-based attendance and day-level schedule overrides with cached Regular and JO views.",
     accent: "Attendance grid"
   },
   schedule: {
     label: "Schedule Settings",
-    summary: "Tune the late threshold that the daily attendance logic uses.",
+    summary: "Tune the date-specific schedule format and late threshold used by attendance calculations.",
     accent: "Policy control"
   },
   authEmails: {
@@ -36,11 +35,6 @@ const PAGE_DETAILS = {
     label: "Reports",
     summary: "Export monthly summaries and late reports for review.",
     accent: "Insights"
-  },
-  backups: {
-    label: "Backup Center",
-    summary: "Run or restore database backups from the admin workspace.",
-    accent: "Resilience"
   }
 };
 
@@ -50,7 +44,6 @@ const PAGE_COMPONENTS = {
   schedule: <ScheduleSettingsPage />,
   authEmails: <AuthorizedEmailsPage />,
   reports: <ReportsPage />,
-  backups: <BackupPage />
 };
 
 export default function App() {
@@ -155,8 +148,8 @@ export default function App() {
             <p className="section-kicker">Command center</p>
             <h1>DTR Automation Admin Portal</h1>
             <p>
-              Manage employees, attendance history, reports, and backups from one editorial workspace built for speed
-              and clarity.
+              Manage employees, attendance history, and reports from one editorial workspace built for speed and
+              clarity.
             </p>
           </div>
 

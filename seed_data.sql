@@ -15,17 +15,17 @@ insert into employees (id, first_name, second_name, last_name, extension, employ
 (9, 'Irene', null, 'Gomez', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Irene Gomez', 'jo'),
 (10, 'Jomar', null, 'Velasco', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Jomar Velasco', 'jo');
 
-insert into schedule_settings (id, date, late_threshold) values
-(1, '2026-04-01', '08:00'),
-(2, '2026-04-02', '08:00'),
-(3, '2026-04-03', '08:00'),
-(4, '2026-04-04', '08:00'),
-(5, '2026-04-05', '08:00'),
-(6, '2026-04-06', '08:00'),
-(7, '2026-04-07', '08:00'),
-(8, '2026-04-08', '08:00'),
-(9, '2026-04-09', '08:30'),
-(10, '2026-04-10', '09:00');
+insert into schedule_settings (id, date, schedule_type, late_threshold) values
+(1, '2026-04-01', 'A', '08:00'),
+(2, '2026-04-02', 'A', '08:00'),
+(3, '2026-04-03', 'A', '08:00'),
+(4, '2026-04-04', 'A', '08:00'),
+(5, '2026-04-05', 'A', '08:00'),
+(6, '2026-04-06', 'A', '08:00'),
+(7, '2026-04-07', 'A', '08:00'),
+(8, '2026-04-08', 'A', '08:00'),
+(9, '2026-04-09', 'B', '08:30'),
+(10, '2026-04-10', 'B', '09:00');
 
 insert into attendance (
   id,

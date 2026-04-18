@@ -76,6 +76,7 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("regular");
   const [selectedDate, setSelectedDate] = useState(() => getManilaDate());
   const [selectedSchedule, setSelectedSchedule] = useState("A");
+  const [scheduleSetting, setScheduleSetting] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
@@ -178,6 +179,36 @@ export default function App() {
   }, [activeCategory, selectedDate, session]);
 
   useEffect(() => {
+    if (!session) {
+      return;
+    }
+
+    let mounted = true;
+
+    async function loadSchedule(date) {
+      try {
+        const data = await api.getScheduleSettings(date);
+        if (!mounted) {
+          return;
+        }
+
+        setScheduleSetting(data);
+        setSelectedSchedule(data.schedule_type || "A");
+      } catch {
+        if (mounted) {
+          setScheduleSetting(null);
+        }
+      }
+    }
+
+    loadSchedule(selectedDate);
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedDate, session]);
+
+  useEffect(() => {
     if (!session?.access_token) {
       return undefined;
     }
@@ -202,7 +233,7 @@ export default function App() {
       await api.clockAttendance({
         employee_id: employeeId,
         date: selectedDate,
-        schedule_type: selectedSchedule,
+        schedule_type: scheduleSetting?.schedule_type || selectedSchedule,
         leave_type: leaveType,
         employee_password: employeePassword
       });
@@ -240,7 +271,9 @@ export default function App() {
   const activeCategoryTitle = getCategoryTitle(activeCategory);
   const activeCategorySummary = getCategorySummary(activeCategory);
   const statusTone = getStatusTone(status);
-  const selectedScheduleLabel = selectedSchedule === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
+  const activeScheduleType = scheduleSetting?.schedule_type || selectedSchedule;
+  const scheduleLocked = Boolean(scheduleSetting?.has_override);
+  const selectedScheduleLabel = activeScheduleType === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
 
   async function handleSignOut() {
     clearPortalSession();
@@ -391,11 +424,12 @@ export default function App() {
           </label>
           <label>
             Schedule Type
-            <select value={selectedSchedule} onChange={(event) => setSelectedSchedule(event.target.value)}>
+            <select value={selectedSchedule} onChange={(event) => setSelectedSchedule(event.target.value)} disabled={scheduleLocked}>
               <option value="A">A (08:00-17:00)</option>
               <option value="B">B (08:00-19:00)</option>
             </select>
           </label>
+          {scheduleLocked ? <p className="hint">This date is locked to the admin schedule override.</p> : <p className="hint">Choose the schedule used for this clock action.</p>}
         </div>
       </section>
     </main>

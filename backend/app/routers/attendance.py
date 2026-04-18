@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..schemas import AttendanceUpdate, ClockRequest, MasterSheetAttendanceUpsert
+from ..services.schedule_settings import resolve_schedule_context
 from ..services.report_service import export_master_sheet_xlsx
 from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
@@ -196,9 +197,12 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
 
 def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: dict | None = None) -> dict:
-  schedule_type = (payload.schedule_type or (current or {}).get("schedule_type") or "A").upper()
-  if schedule_type not in {"A", "B"}:
-    raise HTTPException(status_code=400, detail="Schedule type must be A or B.")
+  fallback_schedule_type = payload.schedule_type or (current or {}).get("schedule_type") or "A"
+
+  try:
+    schedule_type, late_threshold = resolve_schedule_context(payload.date.isoformat(), fallback_schedule_type)
+  except ValueError as error:
+    raise HTTPException(status_code=400, detail=str(error)) from error
 
   explicit_leave_type = (payload.leave_type or "").strip().upper() or None
   if explicit_leave_type and not is_leave_code(explicit_leave_type):
@@ -228,7 +232,8 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
       schedule_type,
       time_in_value,
       time_out_value,
-      None
+      None,
+      late_threshold
     )
 
   return {
@@ -412,6 +417,8 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   existing = existing_response.data[0] if existing_response.data else None
 
   try:
+    schedule_type, late_threshold = resolve_schedule_context(target_date, payload.schedule_type or "A")
+
     if leave_type:
       values = {
         "employee_id": payload.employee_id,
@@ -447,10 +454,11 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     # Second tap records Time Out if Time In already exists.
     if existing and existing.get("time_in") and not existing.get("time_out") and not is_leave_code(existing.get("time_in")):
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
-        existing.get("schedule_type") or schedule_type,
+        schedule_type,
         existing.get("time_in"),
         now_time,
-        existing.get("leave_type")
+        existing.get("leave_type"),
+        late_threshold
       )
 
       values = {
@@ -459,7 +467,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         "late_minutes": late,
         "undertime_minutes": undertime,
         "overtime_minutes": overtime,
-        "schedule_type": existing.get("schedule_type") or schedule_type,
+        "schedule_type": schedule_type,
         "leave_type": existing.get("leave_type")
       }
 
@@ -472,7 +480,8 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         schedule_type,
         now_time,
         None,
-        None
+        None,
+        late_threshold
       )
       values = {
         "employee_id": payload.employee_id,
@@ -530,22 +539,25 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
   time_in_value = (time_in or "").strip() or None
   time_out_value = (time_out or "").strip() or None
 
-  if leave_type and not time_in_value and not time_out_value:
-    late = 0
-    undertime = 0
-    overtime = 0
-    normalized_in = None
-    normalized_out = None
-  else:
-    try:
+  try:
+    schedule_type, late_threshold = resolve_schedule_context(target_date, schedule_type)
+
+    if leave_type and not time_in_value and not time_out_value:
+      late = 0
+      undertime = 0
+      overtime = 0
+      normalized_in = None
+      normalized_out = None
+    else:
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
         schedule_type,
         time_in_value,
         time_out_value,
-        None
+        None,
+        late_threshold
       )
-    except ValueError as error:
-      raise HTTPException(status_code=400, detail=str(error)) from error
+  except ValueError as error:
+    raise HTTPException(status_code=400, detail=str(error)) from error
 
   values = {
     "date": target_date,

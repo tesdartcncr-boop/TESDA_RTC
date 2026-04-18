@@ -39,6 +39,15 @@ const MASTER_SHEET_CACHE_PREFIX = "admin-master-sheet-cache:";
 const MASTER_SHEET_CACHE_TTL_MS = 15 * 60 * 1000;
 const inMemoryMasterSheetCache = new Map();
 
+async function getCacheRevision() {
+  try {
+    const data = await request("/cache-revision");
+    return String(data?.revision || "");
+  } catch {
+    return "";
+  }
+}
+
 function getMasterSheetCacheKey(params = {}) {
   const category = String(params.category || "all").trim().toLowerCase();
   const dateFrom = String(params.date_from || "").trim();
@@ -47,10 +56,10 @@ function getMasterSheetCacheKey(params = {}) {
   return `${MASTER_SHEET_CACHE_PREFIX}${category}:${dateFrom}:${dateTo}`;
 }
 
-function readMasterSheetCache(params = {}) {
+function readMasterSheetCache(params = {}, revision = "") {
   const cacheKey = getMasterSheetCacheKey(params);
   const memoryEntry = inMemoryMasterSheetCache.get(cacheKey);
-  if (memoryEntry && Date.now() - memoryEntry.savedAt < MASTER_SHEET_CACHE_TTL_MS) {
+  if (memoryEntry && memoryEntry.revision === revision && Date.now() - memoryEntry.savedAt < MASTER_SHEET_CACHE_TTL_MS) {
     return memoryEntry.data;
   }
 
@@ -70,6 +79,12 @@ function readMasterSheetCache(params = {}) {
       return null;
     }
 
+    if ((parsed.revision || "") !== revision) {
+      window.localStorage.removeItem(cacheKey);
+      inMemoryMasterSheetCache.delete(cacheKey);
+      return null;
+    }
+
     const savedAt = Number(parsed.savedAt || 0);
     if (!savedAt || Date.now() - savedAt >= MASTER_SHEET_CACHE_TTL_MS) {
       window.localStorage.removeItem(cacheKey);
@@ -82,18 +97,19 @@ function readMasterSheetCache(params = {}) {
       return null;
     }
 
-    inMemoryMasterSheetCache.set(cacheKey, { data, savedAt });
+    inMemoryMasterSheetCache.set(cacheKey, { data, savedAt, revision: parsed.revision || revision });
     return data;
   } catch {
     window.localStorage.removeItem(cacheKey);
+    inMemoryMasterSheetCache.delete(cacheKey);
     return null;
   }
 }
 
-function writeMasterSheetCache(params = {}, data) {
+function writeMasterSheetCache(params = {}, data, revision = "") {
   const cacheKey = getMasterSheetCacheKey(params);
-  const payload = { savedAt: Date.now(), data };
-  inMemoryMasterSheetCache.set(cacheKey, payload);
+  const payload = { savedAt: Date.now(), revision, data };
+  inMemoryMasterSheetCache.set(cacheKey, { ...payload, data });
 
   if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
     return;
@@ -270,21 +286,35 @@ export const api = {
     return request(`/attendance/master?${searchParams}`);
   },
   getMasterSheet(params, options = {}) {
-    if (!options.forceRefresh) {
-      const cachedSheet = readMasterSheetCache(params);
-      if (cachedSheet) {
-        return Promise.resolve(cachedSheet);
+    return getCacheRevision().then((revision) => {
+      if (!options.forceRefresh) {
+        const cachedSheet = readMasterSheetCache(params, revision);
+        if (cachedSheet) {
+          return Promise.resolve(cachedSheet);
+        }
       }
-    }
 
-    const searchParams = buildSearchParams(params);
-    return request(`/attendance/master-sheet?${searchParams}`).then((data) => {
-      writeMasterSheetCache(params, data);
-      return data;
+      const searchParams = buildSearchParams(params);
+      return request(`/attendance/master-sheet?${searchParams}`).then((data) => {
+        writeMasterSheetCache(params, data, revision);
+        return data;
+      });
     });
   },
   clearMasterSheetCache(params) {
     clearMasterSheetCache(params);
+  },
+  getScheduleSettings(date) {
+    return request(`/settings/schedule-threshold?date=${date}`);
+  },
+  setScheduleSettings(payload) {
+    return request("/settings/schedule-threshold", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      clearMasterSheetCache();
+      return data;
+    });
   },
   saveMasterSheetRecord(payload) {
     return request("/attendance/master-sheet", {
@@ -295,15 +325,6 @@ export const api = {
   exportMasterSheet(params) {
     const searchParams = buildSearchParams(params);
     return request(`/attendance/master-sheet/export?${searchParams}`);
-  },
-  getDailyThreshold(date) {
-    return request(`/settings/schedule-threshold?date=${date}`);
-  },
-  setDailyThreshold(payload) {
-    return request("/settings/schedule-threshold", {
-      method: "PUT",
-      body: JSON.stringify(payload)
-    });
   },
   getMonthlySummary(month) {
     return request(`/reports/monthly-summary?month=${month}`);

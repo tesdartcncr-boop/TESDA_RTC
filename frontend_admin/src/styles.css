@@ -380,6 +380,29 @@ button.danger {
   background: #fff;
 }
 
+.master-sheet-date-button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0.12rem 0.18rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 0.14em;
+}
+
+.master-sheet-date-button:hover,
+.master-sheet-date-button:focus-visible {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
 .master-sheet-table tbody .master-sheet-date-col.is-weekend,
 .master-sheet-table tbody .master-sheet-day-col.is-weekend {
   background: #d7d7d7;
@@ -673,6 +696,58 @@ button.danger {
   color: var(--muted);
   font-size: 0.62rem;
   text-align: center;
+}
+
+.schedule-override-modal {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(8, 18, 20, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.schedule-override-card--modal {
+  width: min(760px, 100%);
+  max-height: calc(100vh - 2rem);
+  overflow: auto;
+  box-shadow: 0 30px 60px rgba(6, 14, 16, 0.28);
+  animation: schedule-modal-enter 160ms ease-out;
+}
+
+.schedule-override-card__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.schedule-override-card__header-actions {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.schedule-override-card__close {
+  white-space: nowrap;
+}
+
+.schedule-override-card__toolbar label {
+  flex: 1 1 170px;
+}
+
+@keyframes schedule-modal-enter {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 .master-sheet-previews {
@@ -1582,6 +1657,8 @@ tbody tr:hover td {
 
 .name-field--password {
   grid-column: 1 / -1;
+  justify-self: start;
+  width: min(100%, 320px);
 }
 
 .name-input {
@@ -1753,6 +1830,8 @@ tbody tr:hover td {
 
 .name-field--password {
   grid-column: 1 / -1;
+  justify-self: start;
+  width: min(100%, 320px);
 }
 
 .name-input {

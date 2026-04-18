@@ -20,9 +20,13 @@ create unique index if not exists employees_name_category_uq on employees (name,
 create table if not exists schedule_settings (
   id bigserial primary key,
   date date not null unique,
+  schedule_type text not null default 'A' check (schedule_type in ('A', 'B')),
   late_threshold time not null default '08:00',
   created_at timestamptz not null default now()
 );
+
+alter table if exists schedule_settings
+  add column if not exists schedule_type text not null default 'A';
 
 create table if not exists attendance (
   id bigserial primary key,
