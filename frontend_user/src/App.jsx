@@ -42,6 +42,19 @@ function getCategorySummary(category) {
   return category === "regular" ? "Permanent staff roster" : "Job order roster";
 }
 
+function formatDisplayDate(dateIso) {
+  const [year, month, day] = dateIso.split("-").map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: MANILA_TIME_ZONE,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+    year: "numeric"
+  }).format(date);
+}
+
 function getStatusTone(status) {
   const normalized = status.toLowerCase();
 
@@ -224,6 +237,11 @@ export default function App() {
     return employees.filter((employee) => (employee.name || "").toLowerCase().includes(query));
   }, [employeeSearch, employees]);
 
+  const activeCategoryTitle = getCategoryTitle(activeCategory);
+  const activeCategorySummary = getCategorySummary(activeCategory);
+  const statusTone = getStatusTone(status);
+  const selectedScheduleLabel = selectedSchedule === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
+
   async function handleSignOut() {
     clearPortalSession();
     setSession(null);
@@ -258,21 +276,66 @@ export default function App() {
 
   return (
     <main className="page user-page">
-      <header className="surface user-header">
-        <div className="user-header__copy">
-          <p className="section-kicker">Attendance dashboard</p>
+      <header className="hero">
+        <div className="hero-copy">
+          <p className="eyebrow">Attendance dashboard</p>
           <h1>DTR Automation User Portal</h1>
+          <p>
+            Clock employees from a calm, editorial workspace that keeps Manila dates, roster switching, and clocking
+            actions on one screen.
+          </p>
         </div>
 
-        <div className="session-bar user-session-bar">
-          <span>{session.user.email}</span>
-          <button type="button" className="secondary-btn" onClick={handleSignOut}>
-            Sign out
-          </button>
+        <div className={`hero-spotlight hero-spotlight--${statusTone}`}>
+          <span>Live status</span>
+          <strong>{status}</strong>
+          <div className="hero-metric">
+            <span>Selected date</span>
+            <strong>{formatDisplayDate(selectedDate)}</strong>
+          </div>
+          <div className="hero-metric">
+            <span>Active roster</span>
+            <strong>{activeCategoryTitle}</strong>
+          </div>
         </div>
       </header>
 
       <section className="surface user-workspace">
+        <div className="dashboard-header">
+          <div className="dashboard-header__copy">
+            <p className="section-kicker">Roster workspace</p>
+            <h2>Switch category, search the roster, and clock directly from the cards</h2>
+            <p className="hint">Search, roster selection, and clocking stay together so the workflow stays on one view.</p>
+          </div>
+
+          <div className="dashboard-header__meta">
+            <div className="dashboard-stats">
+              <article className="dashboard-stat">
+                <span>Category</span>
+                <strong>{activeCategoryTitle}</strong>
+                <p>{activeCategorySummary}</p>
+              </article>
+              <article className="dashboard-stat">
+                <span>Visible employees</span>
+                <strong>{filteredEmployees.length}</strong>
+                <p>{employees.length} loaded</p>
+              </article>
+              <article className="dashboard-stat">
+                <span>Schedule</span>
+                <strong>{selectedScheduleLabel}</strong>
+                <p>{formatDisplayDate(selectedDate)}</p>
+              </article>
+            </div>
+
+            <div className="session-bar user-session-bar">
+              <span>{session.user.email}</span>
+              <button type="button" className="secondary-btn" onClick={handleSignOut}>
+                Sign out
+              </button>
+            </div>
+          </div>
+        </div>
+
         <div className="roster-toolbar">
           <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
 
@@ -294,6 +357,24 @@ export default function App() {
           >
             Clear
           </button>
+        </div>
+
+        <div className="status-strip user-status-strip">
+          <div className="status-card">
+            <span>Category</span>
+            <strong>{activeCategoryTitle}</strong>
+            <p>{activeCategorySummary}</p>
+          </div>
+          <div className="status-card">
+            <span>Employees</span>
+            <strong>{filteredEmployees.length}</strong>
+            <p>{employees.length} loaded</p>
+          </div>
+          <div className="status-card">
+            <span>Status</span>
+            <strong>{status}</strong>
+            <p>{selectedScheduleLabel}</p>
+          </div>
         </div>
 
         <EmployeeGrid

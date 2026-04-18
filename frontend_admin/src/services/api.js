@@ -35,6 +35,111 @@ function buildSearchParams(params = {}) {
   return searchParams.toString();
 }
 
+const MASTER_SHEET_CACHE_PREFIX = "admin-master-sheet-cache:";
+const MASTER_SHEET_CACHE_TTL_MS = 15 * 60 * 1000;
+const inMemoryMasterSheetCache = new Map();
+
+function getMasterSheetCacheKey(params = {}) {
+  const category = String(params.category || "all").trim().toLowerCase();
+  const dateFrom = String(params.date_from || "").trim();
+  const dateTo = String(params.date_to || "").trim();
+
+  return `${MASTER_SHEET_CACHE_PREFIX}${category}:${dateFrom}:${dateTo}`;
+}
+
+function readMasterSheetCache(params = {}) {
+  const cacheKey = getMasterSheetCacheKey(params);
+  const memoryEntry = inMemoryMasterSheetCache.get(cacheKey);
+  if (memoryEntry && Date.now() - memoryEntry.savedAt < MASTER_SHEET_CACHE_TTL_MS) {
+    return memoryEntry.data;
+  }
+
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return null;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(cacheKey);
+    if (!raw) {
+      return null;
+    }
+
+    const parsed = JSON.parse(raw);
+    if (!parsed || typeof parsed !== "object") {
+      window.localStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    const savedAt = Number(parsed.savedAt || 0);
+    if (!savedAt || Date.now() - savedAt >= MASTER_SHEET_CACHE_TTL_MS) {
+      window.localStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    const data = parsed.data && typeof parsed.data === "object" ? parsed.data : null;
+    if (!data) {
+      window.localStorage.removeItem(cacheKey);
+      return null;
+    }
+
+    inMemoryMasterSheetCache.set(cacheKey, { data, savedAt });
+    return data;
+  } catch {
+    window.localStorage.removeItem(cacheKey);
+    return null;
+  }
+}
+
+function writeMasterSheetCache(params = {}, data) {
+  const cacheKey = getMasterSheetCacheKey(params);
+  const payload = { savedAt: Date.now(), data };
+  inMemoryMasterSheetCache.set(cacheKey, payload);
+
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(cacheKey, JSON.stringify(payload));
+  } catch {
+    // Ignore cache write failures.
+  }
+}
+
+function clearMasterSheetCache(params = null) {
+  if (params) {
+    const cacheKey = getMasterSheetCacheKey(params);
+    inMemoryMasterSheetCache.delete(cacheKey);
+
+    if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+      return;
+    }
+
+    window.localStorage.removeItem(cacheKey);
+    return;
+  }
+
+  inMemoryMasterSheetCache.clear();
+
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  const keysToRemove = [];
+  for (let index = 0; index < window.localStorage.length; index += 1) {
+    const key = window.localStorage.key(index);
+    if (key && key.startsWith(MASTER_SHEET_CACHE_PREFIX)) {
+      keysToRemove.push(key);
+    }
+  }
+
+  keysToRemove.forEach((key) => window.localStorage.removeItem(key));
+
+  if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+    window.dispatchEvent(new CustomEvent("master-sheet:invalidate"));
+  }
+}
+
 function formatErrorDetail(detail) {
   if (typeof detail === "string") {
     return detail;
@@ -140,24 +245,46 @@ export const api = {
     return request("/employees", {
       method: "POST",
       body: JSON.stringify(payload)
+    }).then((data) => {
+      clearMasterSheetCache();
+      return data;
     });
   },
   updateEmployee(employeeId, payload) {
     return request(`/employees/${employeeId}`, {
       method: "PUT",
       body: JSON.stringify(payload)
+    }).then((data) => {
+      clearMasterSheetCache();
+      return data;
     });
   },
   deleteEmployee(employeeId) {
-    return request(`/employees/${employeeId}`, { method: "DELETE" });
+    return request(`/employees/${employeeId}`, { method: "DELETE" }).then((data) => {
+      clearMasterSheetCache();
+      return data;
+    });
   },
   getMasterAttendance(params) {
     const searchParams = buildSearchParams(params);
     return request(`/attendance/master?${searchParams}`);
   },
-  getMasterSheet(params) {
+  getMasterSheet(params, options = {}) {
+    if (!options.forceRefresh) {
+      const cachedSheet = readMasterSheetCache(params);
+      if (cachedSheet) {
+        return Promise.resolve(cachedSheet);
+      }
+    }
+
     const searchParams = buildSearchParams(params);
-    return request(`/attendance/master-sheet?${searchParams}`);
+    return request(`/attendance/master-sheet?${searchParams}`).then((data) => {
+      writeMasterSheetCache(params, data);
+      return data;
+    });
+  },
+  clearMasterSheetCache(params) {
+    clearMasterSheetCache(params);
   },
   saveMasterSheetRecord(payload) {
     return request("/attendance/master-sheet", {
@@ -197,6 +324,9 @@ export const api = {
     return request("/backups/restore", {
       method: "POST",
       body: JSON.stringify({ filename })
+    }).then((data) => {
+      clearMasterSheetCache();
+      return data;
     });
   }
 };

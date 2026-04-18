@@ -42,12 +42,27 @@ def _parse_sheet_date(value: str) -> Date:
     raise HTTPException(status_code=400, detail="Dates must use YYYY-MM-DD format.") from error
 
 
-def _format_sheet_title(start_date: Date, end_date: Date) -> str:
+def _category_sheet_label(category: str) -> str:
+  if category == "regular":
+    return "Regular"
+  if category == "jo":
+    return "JO"
+  if category == "all":
+    return "All Employees"
+  return category.strip().title() or "Master"
+
+
+def _format_sheet_title(start_date: Date, end_date: Date, category: str) -> str:
+  category_label = _category_sheet_label(category)
+
+  if start_date == end_date:
+    return f"{category_label} Master Sheet - {start_date.strftime('%B')} {start_date.day}, {start_date.year}"
+
   if start_date.year == end_date.year and start_date.month == end_date.month:
-    return f"{start_date.strftime('%B')} {start_date.day}-{end_date.day}, {start_date.year}"
+    return f"{category_label} Master Sheet - {start_date.strftime('%B')} {start_date.day}-{end_date.day}, {start_date.year}"
 
   return (
-    f"{start_date.strftime('%B')} {start_date.day}, {start_date.year} - "
+    f"{category_label} Master Sheet - {start_date.strftime('%B')} {start_date.day}, {start_date.year} - "
     f"{end_date.strftime('%B')} {end_date.day}, {end_date.year}"
   )
 
@@ -117,6 +132,18 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
   employee_map = {employee["id"]: employee for employee in employees}
   date_rows = _build_sheet_dates(start_date, end_date)
 
+  def _compose_display_name(employee: dict) -> str:
+    parts = [
+      employee.get("first_name"),
+      employee.get("second_name"),
+      employee.get("last_name"),
+      employee.get("extension")
+    ]
+    full_name = " ".join(part.strip() for part in parts if isinstance(part, str) and part.strip())
+    if full_name:
+      return " ".join(full_name.split())
+    return (employee.get("name") or "Unknown Employee").strip() or "Unknown Employee"
+
   records: list[dict] = []
   if employee_map:
     attendance_rows = (
@@ -136,6 +163,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
         {
           **row,
           "employee_name": employee.get("name", "Unknown Employee"),
+          "display_name": _compose_display_name(employee),
           "category": employee.get("category", "unknown"),
           "surname": (employee.get("last_name") or employee.get("name") or "Unknown").strip(),
           "display_time_in": _display_sheet_value(row, "time_in"),
@@ -144,14 +172,20 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
       )
 
   return {
-    "title": _format_sheet_title(start_date, end_date),
+    "title": _format_sheet_title(start_date, end_date, category),
+    "category": category,
     "date_from": start_date.isoformat(),
     "date_to": end_date.isoformat(),
     "dates": date_rows,
     "employees": [
       {
         "id": employee["id"],
+        "first_name": employee.get("first_name", ""),
+        "second_name": employee.get("second_name"),
+        "last_name": employee.get("last_name", ""),
+        "extension": employee.get("extension"),
         "name": employee.get("name", ""),
+        "display_name": _compose_display_name(employee),
         "surname": (employee.get("last_name") or employee.get("name") or "Unknown").strip(),
         "category": employee.get("category", "unknown")
       }
@@ -295,7 +329,11 @@ def get_master_sheet(date_from: str, date_to: str, category: str = "all") -> dic
 def export_master_sheet(date_from: str, date_to: str, category: str = "all") -> StreamingResponse:
   sheet_data = _build_master_sheet_context(date_from, date_to, category)
   content = export_master_sheet_xlsx(sheet_data)
-  filename = f"master-sheet-{sheet_data['date_from']}-to-{sheet_data['date_to']}.xlsx"
+  category_token = (sheet_data.get("category") or category or "all").strip().lower() or "all"
+  if sheet_data["date_from"] == sheet_data["date_to"]:
+    filename = f"{category_token}-master-sheet-{sheet_data['date_from']}.xlsx"
+  else:
+    filename = f"{category_token}-master-sheet-{sheet_data['date_from']}-to-{sheet_data['date_to']}.xlsx"
 
   return StreamingResponse(
     iter([content]),

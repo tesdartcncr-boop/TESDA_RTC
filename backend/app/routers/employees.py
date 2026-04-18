@@ -20,6 +20,17 @@ def translate_employee_error(error: Exception, action: str) -> HTTPException:
   return HTTPException(status_code=500, detail=f"Failed to {action} employee.")
 
 
+def _delete_employee_data(supabase, employee_id: int) -> None:
+  try:
+    supabase.rpc("delete_employee_with_attendance", {"target_employee_id": employee_id}).execute()
+    return
+  except Exception:
+    pass
+
+  supabase.table("attendance").delete().eq("employee_id", employee_id).execute()
+  supabase.table("employees").delete().eq("id", employee_id).execute()
+
+
 @router.get("")
 def list_employees(category: str = "regular") -> list[dict]:
   supabase = get_supabase_client()
@@ -81,6 +92,12 @@ async def delete_employee(employee_id: int) -> dict:
   if not existing.data:
     raise HTTPException(status_code=404, detail="Employee not found.")
 
-  supabase.table("employees").delete().eq("id", employee_id).execute()
+  _delete_employee_data(supabase, employee_id)
+
+  remaining_employee = supabase.table("employees").select("id").eq("id", employee_id).limit(1).execute()
+  remaining_attendance = supabase.table("attendance").select("id").eq("employee_id", employee_id).limit(1).execute()
+  if remaining_employee.data or remaining_attendance.data:
+    raise HTTPException(status_code=500, detail="Failed to delete all employee data.")
+
   await publish_event("employee.deleted", f"Employee deleted: {existing.data[0]['name']}", {"id": employee_id})
   return {"deleted": employee_id}

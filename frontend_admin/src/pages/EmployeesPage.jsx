@@ -4,7 +4,7 @@ import { api } from "../services/api";
 function createEmptyNameParts() {
   return {
     firstName: "",
-    secondName: "",
+    middleName: "",
     lastName: "",
     extension: "",
     employeePassword: ""
@@ -37,7 +37,7 @@ function splitEmployeeName(name) {
   if (baseTokens.length === 1) {
     return {
       firstName: baseTokens[0],
-      secondName: "",
+      middleName: "",
       lastName: "",
       extension
     };
@@ -46,7 +46,7 @@ function splitEmployeeName(name) {
   if (baseTokens.length === 2) {
     return {
       firstName: baseTokens[0],
-      secondName: "",
+      middleName: "",
       lastName: baseTokens[1],
       extension
     };
@@ -54,7 +54,7 @@ function splitEmployeeName(name) {
 
   return {
     firstName: baseTokens[0],
-    secondName: baseTokens.slice(1, -1).join(" "),
+    middleName: baseTokens.slice(1, -1).join(" "),
     lastName: baseTokens[baseTokens.length - 1],
     extension
   };
@@ -64,7 +64,7 @@ function hydrateEmployeeNameParts(employee) {
   if (employee.first_name || employee.second_name || employee.last_name || employee.extension) {
     return {
       firstName: employee.first_name || "",
-      secondName: employee.second_name || "",
+      middleName: employee.second_name || "",
       lastName: employee.last_name || "",
       extension: employee.extension || "",
       employeePassword: ""
@@ -78,7 +78,7 @@ function hydrateEmployeeNameParts(employee) {
 }
 
 function composeEmployeeName(parts) {
-  return [parts.firstName, parts.secondName, parts.lastName, parts.extension]
+  return [parts.firstName, parts.middleName, parts.lastName, parts.extension]
     .map((part) => part.trim())
     .filter(Boolean)
     .join(" ");
@@ -89,7 +89,7 @@ function buildEmployeePayload(parts, category) {
 
   return {
     first_name: parts.firstName.trim(),
-    second_name: parts.secondName.trim() || null,
+    second_name: parts.middleName.trim() || null,
     last_name: parts.lastName.trim(),
     extension: parts.extension.trim() || null,
     name,
@@ -212,18 +212,20 @@ export default function EmployeesPage() {
   }
 
   return (
-    <section className="card">
+    <section className="card employee-management-card">
       <h2>Employee Management</h2>
       <p className="subtle">Status: {status}</p>
-      <p className="subtle">Use FN, SN, LN, an optional extension, and assign a password for time in/out.</p>
+    <p className="subtle">Use FN, MN, LN, an optional extension, and assign a password for time in/out.</p>
 
-      <div className="toolbar">
-        <div className="tab-cluster">
-          <button type="button" className={category === "regular" ? "mini-tab active" : "mini-tab"} onClick={() => setCategory("regular")}>Regular</button>
-          <button type="button" className={category === "jo" ? "mini-tab active" : "mini-tab"} onClick={() => setCategory("jo")}>JO</button>
+      <div className="employee-management-toolbar">
+        <div className="employee-management-tabs-row">
+          <div className="tab-cluster employee-management-tabs">
+            <button type="button" className={category === "regular" ? "mini-tab active" : "mini-tab"} onClick={() => setCategory("regular")}>Regular</button>
+            <button type="button" className={category === "jo" ? "mini-tab active" : "mini-tab"} onClick={() => setCategory("jo")}>JO</button>
+          </div>
         </div>
 
-        <div className="name-grid">
+        <div className="name-grid employee-management-form">
           <label className="name-field">
             <span>FN</span>
             <input
@@ -234,12 +236,12 @@ export default function EmployeesPage() {
             />
           </label>
           <label className="name-field">
-            <span>SN</span>
+            <span>MN</span>
             <input
               className="name-input"
-              placeholder="Second name"
-              value={newNameParts.secondName}
-              onChange={(event) => setNewNameParts((prev) => ({ ...prev, secondName: event.target.value }))}
+              placeholder="Middle name"
+              value={newNameParts.middleName}
+              onChange={(event) => setNewNameParts((prev) => ({ ...prev, middleName: event.target.value }))}
             />
           </label>
           <label className="name-field">
@@ -292,7 +294,7 @@ export default function EmployeesPage() {
           <thead>
             <tr>
               <th>FN</th>
-              <th>SN</th>
+              <th>MN</th>
               <th>LN</th>
               <th>Ext.</th>
               <th>Password</th>
@@ -313,8 +315,8 @@ export default function EmployeesPage() {
                 <td>
                   <input
                     className="name-input"
-                    value={draftNames[employee.id]?.secondName || ""}
-                    onChange={(event) => updateDraftName(employee.id, "secondName", event.target.value)}
+                    value={draftNames[employee.id]?.middleName || ""}
+                    onChange={(event) => updateDraftName(employee.id, "middleName", event.target.value)}
                   />
                 </td>
                 <td>

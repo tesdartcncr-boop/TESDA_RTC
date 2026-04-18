@@ -38,6 +38,74 @@ function getClockCopy(attendance, leaveType) {
   };
 }
 
+function getRosterCardCopy(attendance) {
+  const leaveType = (attendance?.leave_type || "").trim().toUpperCase();
+  const hasTimeIn = attendance?.time_in && !["SL", "VL", "OB"].includes(String(attendance.time_in).trim().toUpperCase());
+  const hasTimeOut = attendance?.time_out && !["SL", "VL", "OB"].includes(String(attendance.time_out).trim().toUpperCase());
+
+  function formatRosterTime(field) {
+    if (!attendance) {
+      return "—";
+    }
+
+    const value = attendance[field] || "";
+
+    if (field === "time_in") {
+      if (leaveType) {
+        return leaveType;
+      }
+
+      if (value && ["SL", "VL", "OB"].includes(String(value).trim().toUpperCase())) {
+        return String(value).trim().toUpperCase();
+      }
+    }
+
+    if (field === "time_out" && value && ["SL", "VL", "OB"].includes(String(value).trim().toUpperCase())) {
+      return String(value).trim().toUpperCase();
+    }
+
+    return value || "—";
+  }
+
+  if (hasTimeIn && hasTimeOut) {
+    return {
+      badge: "Complete",
+      note: "Time In and Time Out already recorded",
+      tone: "is-complete",
+      timeIn: formatRosterTime("time_in"),
+      timeOut: formatRosterTime("time_out")
+    };
+  }
+
+  if (leaveType) {
+    return {
+      badge: leaveType,
+      note: "Leave tagged for this date",
+      tone: "is-leave",
+      timeIn: formatRosterTime("time_in"),
+      timeOut: formatRosterTime("time_out")
+    };
+  }
+
+  if (hasTimeIn) {
+    return {
+      badge: "Clock out",
+      note: `Time In saved at ${attendance.time_in}`,
+      tone: "is-open",
+      timeIn: formatRosterTime("time_in"),
+      timeOut: formatRosterTime("time_out")
+    };
+  }
+
+  return {
+    badge: "Clock in",
+    note: "Tap the card to start a record",
+    tone: "is-open",
+    timeIn: "—",
+    timeOut: "—"
+  };
+}
+
 export default function EmployeeGrid({ employees, attendanceByEmployeeId = new Map(), onClock, emptyMessage = "No employees found for this category." }) {
   const [activeEmployeeId, setActiveEmployeeId] = useState(null);
   const [password, setPassword] = useState("");
@@ -135,11 +203,12 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
   return (
     <>
       <div
-        className={isScrollable ? "employee-grid employee-grid--single employee-grid--scroll" : "employee-grid employee-grid--single"}
-        style={isScrollable ? { maxHeight: "calc((72px * 10) + (0.85rem * 9))", overflowY: "auto", paddingRight: "0.35rem" } : undefined}
+        className={isScrollable ? "employee-grid employee-grid--two-up employee-grid--scroll" : "employee-grid employee-grid--two-up"}
+        style={isScrollable ? { maxHeight: "calc((7rem * 6) + (0.85rem * 5))", overflowY: "auto", paddingRight: "0.35rem" } : undefined}
       >
         {employees.map((employee) => {
           const attendance = attendanceByEmployeeId.get(employee.id);
+          const cardCopy = getRosterCardCopy(attendance);
           const isCompleted = Boolean(
             attendance?.time_in &&
             attendance?.time_out &&
@@ -151,11 +220,25 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
             <button
               key={employee.id}
               type="button"
-              className="employee-card employee-card--button"
+              className={`employee-card employee-card--button ${cardCopy.tone}`}
               onClick={() => openModal(employee)}
               disabled={isCompleted}
             >
-              <span className="employee-name">{employee.name}</span>
+              <span className="employee-card__copy">
+                <span className="employee-badge">{cardCopy.badge}</span>
+                <span className="employee-name">{employee.name}</span>
+                <span className="employee-card__note">{cardCopy.note}</span>
+                <span className="employee-card__times" aria-label={`Time in and time out for ${employee.name}`}>
+                  <span className="employee-time-chip">
+                    <span>Time In</span>
+                    <strong>{cardCopy.timeIn}</strong>
+                  </span>
+                  <span className="employee-time-chip employee-time-chip--out">
+                    <span>Time Out</span>
+                    <strong>{cardCopy.timeOut}</strong>
+                  </span>
+                </span>
+              </span>
             </button>
           );
         })}

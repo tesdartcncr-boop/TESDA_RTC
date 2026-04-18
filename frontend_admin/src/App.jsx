@@ -11,6 +11,39 @@ import { clearPortalSession, getPortalSession } from "./services/session";
 import { supabase } from "./services/supabase";
 import { connectRealtime } from "./services/socket";
 
+const PAGE_DETAILS = {
+  employees: {
+    label: "Employees",
+    summary: "Shape the roster and keep names, passwords, and categories aligned.",
+    accent: "Command roster"
+  },
+  master: {
+    label: "Master Sheet",
+    summary: "Edit month-based attendance with cached Regular and JO views.",
+    accent: "Attendance grid"
+  },
+  schedule: {
+    label: "Schedule Settings",
+    summary: "Tune the late threshold that the daily attendance logic uses.",
+    accent: "Policy control"
+  },
+  authEmails: {
+    label: "Authorized Emails",
+    summary: "Control which inboxes can request OTP access into the portals.",
+    accent: "Access control"
+  },
+  reports: {
+    label: "Reports",
+    summary: "Export monthly summaries and late reports for review.",
+    accent: "Insights"
+  },
+  backups: {
+    label: "Backup Center",
+    summary: "Run or restore database backups from the admin workspace.",
+    accent: "Resilience"
+  }
+};
+
 const PAGE_COMPONENTS = {
   employees: <EmployeesPage />,
   master: <MasterSheetPage />,
@@ -79,6 +112,8 @@ export default function App() {
   }, [session?.access_token]);
 
   const latestEvent = useMemo(() => updates[0] || "No updates yet", [updates]);
+  const activePageInfo = PAGE_DETAILS[activePage] || PAGE_DETAILS.employees;
+  const isMasterPage = activePage === "master";
 
   async function handleSignOut() {
     clearPortalSession();
@@ -113,22 +148,62 @@ export default function App() {
   }
 
   return (
-    <main className="admin-page">
+    <main className={isMasterPage ? "admin-page admin-page--master" : "admin-page"}>
       <header className="admin-hero">
-        <h1>DTR Automation Admin Portal</h1>
-        <p>Manage employees, attendance history, reports, and backup lifecycle.</p>
-        <div className="admin-hero-meta">
-          <p className="event-pill">Realtime: {latestEvent}</p>
-          <div className="session-bar admin-session-bar">
-            <span>{session.user.email}</span>
-            <button type="button" className="secondary-btn" onClick={handleSignOut}>
-              Sign out
-            </button>
+        <div className="dashboard-header">
+          <div className="dashboard-header__copy">
+            <p className="section-kicker">Command center</p>
+            <h1>DTR Automation Admin Portal</h1>
+            <p>
+              Manage employees, attendance history, reports, and backups from one editorial workspace built for speed
+              and clarity.
+            </p>
+          </div>
+
+          <div className="dashboard-header__meta">
+            <div className="dashboard-stats">
+              <article className="dashboard-stat">
+                <span>Active section</span>
+                <strong>{activePageInfo.label}</strong>
+                <p>{activePageInfo.summary}</p>
+              </article>
+              <article className="dashboard-stat">
+                <span>Realtime feed</span>
+                <strong>{updates.length}</strong>
+                <p>{latestEvent}</p>
+              </article>
+            </div>
+
+            <div className="session-bar admin-session-bar">
+              <span>{session.user.email}</span>
+              <button type="button" className="secondary-btn" onClick={handleSignOut}>
+                Sign out
+              </button>
+            </div>
           </div>
         </div>
       </header>
 
       <NavBar activePage={activePage} onChange={setActivePage} />
+
+      <div className="status-strip admin-status-strip">
+        <div className="status-card">
+          <span>Workspace</span>
+          <strong>{activePageInfo.accent}</strong>
+          <p>{activePageInfo.summary}</p>
+        </div>
+        <div className="status-card">
+          <span>Live update</span>
+          <strong>{latestEvent}</strong>
+          <p>{updates.length ? `${updates.length} recent events` : "Waiting for activity"}</p>
+        </div>
+        <div className="status-card">
+          <span>Signed in</span>
+          <strong>{session.user.email}</strong>
+          <p>OTP-authenticated admin session.</p>
+        </div>
+      </div>
+
       {PAGE_COMPONENTS[activePage]}
 
       <section className="card">

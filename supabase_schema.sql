@@ -67,6 +67,16 @@ begin
 end;
 $$;
 
+create or replace function delete_employee_with_attendance(target_employee_id bigint)
+returns void
+language plpgsql
+as $$
+begin
+  delete from attendance where employee_id = target_employee_id;
+  delete from employees where id = target_employee_id;
+end;
+$$;
+
 drop trigger if exists attendance_set_updated_at on attendance;
 create trigger attendance_set_updated_at
 before update on attendance
