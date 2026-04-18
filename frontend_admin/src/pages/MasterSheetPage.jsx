@@ -315,8 +315,8 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
               </tr>
             </thead>
             <tbody>
-              {rows.map((row) => (
-                <tr key={row.date}>
+              {rows.map((row, index) => (
+                <tr key={row.date} style={{ "--row-index": index }}>
                   <td className={row.is_weekend ? "master-sheet-surname-sheet__date--weekend" : row.is_monday ? "master-sheet-surname-sheet__date--monday" : ""}>
                     {row.date}
                   </td>
@@ -616,8 +616,8 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
               </tr>
             </thead>
             <tbody>
-              {sheetState.dates.map((dateInfo) => (
-                <tr key={dateInfo.date} className={dateInfo.is_weekend ? "sheet-weekend-row" : ""}>
+              {sheetState.dates.map((dateInfo, index) => (
+                <tr key={dateInfo.date} className={dateInfo.is_weekend ? "sheet-weekend-row" : ""} style={{ "--row-index": index }}>
                   <td className={`master-sheet-date-col ${dateInfo.is_monday ? "is-monday" : dateInfo.is_weekend ? "is-weekend" : ""}`}>
                     <button
                       type="button"
@@ -674,6 +674,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
             <p className="subtle master-sheet-preview-empty">Loading surname tab...</p>
           ) : selectedSurnameEmployee ? (
             <EmployeeSurnameSheet
+              key={selectedSurnameEmployee.id}
               employee={selectedSurnameEmployee}
               periodLabel={periodLabel}
               rows={previewRowsByEmployee[selectedSurnameEmployee.id] || []}

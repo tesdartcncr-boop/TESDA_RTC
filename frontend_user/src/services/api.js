@@ -6,14 +6,38 @@ const EMPLOYEE_CACHE_PREFIX = "dtr_employee_cache:v1:";
 const EMPLOYEE_CACHE_TTL_MS = 10 * 60 * 1000;
 const knownEmployeeCategories = new Set(["regular", "jo"]);
 const inMemoryEmployeeCache = new Map();
+const CACHE_REVISION_TTL_MS = 5 * 1000;
+let cachedRevision = "";
+let cachedRevisionAt = 0;
+let cachedRevisionPromise = null;
 
-async function getCacheRevision() {
-  try {
-    const data = await request("/cache-revision");
-    return String(data?.revision || "");
-  } catch {
-    return "";
+function invalidateCacheRevision() {
+  cachedRevision = "";
+  cachedRevisionAt = 0;
+  cachedRevisionPromise = null;
+}
+
+async function getCacheRevision(forceRefresh = false) {
+  if (!forceRefresh && cachedRevision && Date.now() - cachedRevisionAt < CACHE_REVISION_TTL_MS) {
+    return cachedRevision;
   }
+
+  if (cachedRevisionPromise) {
+    return cachedRevisionPromise;
+  }
+
+  cachedRevisionPromise = request("/cache-revision")
+    .then((data) => {
+      cachedRevision = String(data?.revision || "");
+      cachedRevisionAt = Date.now();
+      return cachedRevision;
+    })
+    .catch(() => "")
+    .finally(() => {
+      cachedRevisionPromise = null;
+    });
+
+  return cachedRevisionPromise;
 }
 
 function resolveApiBaseUrl() {
@@ -224,12 +248,18 @@ export const api = {
     return request("/attendance/clock", {
       method: "POST",
       body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      return data;
     });
   },
   updateAttendance(id, payload) {
     return request(`/attendance/${id}`, {
       method: "PUT",
       body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      return data;
     });
   },
   getLateThreshold(date) {

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import AuthorizedEmailCreate, AuthorizedEmailStatusUpdate, ScheduleThresholdUpdate
-from ..services.cache_revision import build_cache_revision
+from ..services.cache_revision import build_cache_revision, invalidate_cache_revision
 from ..services.schedule_settings import get_schedule_display_values, normalize_late_threshold, recalculate_attendance_for_date, upsert_schedule_setting
 from ..services.realtime import publish_event
 from ..supabase_client import get_supabase_client
@@ -128,6 +128,7 @@ async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
     "updated_count": len(updated_rows)
   }
 
+  invalidate_cache_revision()
   await publish_event(
     "attendance.updated",
     f"Schedule updated for {payload.date.isoformat()} ({result['schedule_type']}, late {result['late_threshold']}); recalculated {result['updated_count']} attendance rows.",

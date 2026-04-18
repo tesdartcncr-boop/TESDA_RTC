@@ -287,7 +287,7 @@ export default function EmployeesPage() {
       </div>
 
       <div className="table-container">
-        <table className="employee-table">
+        <table key={category} className="employee-table">
           <thead>
             <tr>
               <th>FN</th>
@@ -300,8 +300,8 @@ export default function EmployeesPage() {
             </tr>
           </thead>
           <tbody>
-            {employees.map((employee) => (
-              <tr key={employee.id}>
+            {employees.map((employee, index) => (
+              <tr key={employee.id} style={{ "--row-index": index }}>
                 <td>
                   <input
                     className="name-input"

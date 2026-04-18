@@ -217,6 +217,7 @@ button.danger {
   display: grid;
   gap: 0.4rem;
   min-width: 0;
+  animation: fade-in 180ms ease-out;
 }
 
 .master-sheet-panel--hidden {
@@ -288,6 +289,7 @@ button.danger {
   border-radius: 14px;
   background: #fff;
   padding-bottom: 0.35rem;
+  animation: fade-in 180ms ease-out;
 }
 
 .master-sheet-table {
@@ -413,6 +415,11 @@ button.danger {
   background: #f5c148;
 }
 
+.master-sheet-table tbody tr {
+  animation: fade-in 220ms ease-out both;
+  animation-delay: calc(var(--row-index, 0) * 18ms);
+}
+
 .master-sheet-input {
   width: 100%;
   min-width: 0;
@@ -460,6 +467,7 @@ button.danger {
   display: grid;
   gap: 0.85rem;
   min-width: 0;
+  animation: fade-in 180ms ease-out;
 }
 
 .master-sheet-surname-tabs {
@@ -491,6 +499,7 @@ button.danger {
   border-radius: 22px;
   background: linear-gradient(180deg, #fffdf8 0%, #ffffff 100%);
   box-shadow: 0 16px 30px rgba(16, 34, 38, 0.07);
+  animation: fade-in 180ms ease-out;
 }
 
 .master-sheet-surname-sheet__header {
@@ -643,6 +652,11 @@ button.danger {
   background: rgba(15, 107, 107, 0.05);
 }
 
+.master-sheet-surname-sheet__table tbody tr {
+  animation: fade-in 220ms ease-out both;
+  animation-delay: calc(var(--row-index, 0) * 18ms);
+}
+
 .master-sheet-surname-sheet__date--weekend,
 .master-sheet-surname-sheet__day--weekend {
   background: #d7d7d7;
@@ -747,6 +761,16 @@ button.danger {
   to {
     opacity: 1;
     transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
   }
 }
 
@@ -1715,6 +1739,11 @@ tbody tr:hover td {
 
 .employee-table td input {
   min-width: 0;
+}
+
+.employee-table tbody tr {
+  animation: fade-in 220ms ease-out both;
+  animation-delay: calc(var(--row-index, 0) * 18ms);
 }
 
 @media (max-width: 1100px) {

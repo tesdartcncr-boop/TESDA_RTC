@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 
 from ..schemas import AttendanceUpdate, ClockRequest, MasterSheetAttendanceUpsert
+from ..services.cache_revision import invalidate_cache_revision
 from ..services.schedule_settings import resolve_schedule_context
 from ..services.report_service import export_master_sheet_xlsx
 from ..services.realtime import publish_event
@@ -386,6 +387,7 @@ async def upsert_master_sheet_record(payload: MasterSheetAttendanceUpsert) -> di
     f"Attendance edited for {employee['name']} ({payload.date.isoformat()})",
     row
   )
+  invalidate_cache_revision()
   return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
 
@@ -443,6 +445,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         f"{employee['name']} tagged with leave {leave_type} for {target_date}",
         row
       )
+      invalidate_cache_revision()
       return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
     now_time = now_military_time()
@@ -512,6 +515,8 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     row
   )
 
+  invalidate_cache_revision()
+
   return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
 
@@ -580,4 +585,5 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
     f"Attendance edited for {employee['name']} ({target_date})",
     row
   )
+  invalidate_cache_revision()
   return {**row, "employee_name": employee["name"], "category": employee["category"]}

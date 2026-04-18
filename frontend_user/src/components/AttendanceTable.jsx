@@ -24,7 +24,7 @@ export default function AttendanceTable({ rows, onCellUpdate }) {
 
   return (
     <div className="table-wrap">
-      <table>
+      <table className="attendance-table">
         <thead>
           <tr>
             <th scope="col">Employee Name</th>
@@ -37,8 +37,8 @@ export default function AttendanceTable({ rows, onCellUpdate }) {
           </tr>
         </thead>
         <tbody>
-          {rows.map((row) => (
-            <tr key={row.id}>
+          {rows.map((row, index) => (
+            <tr key={row.id} style={{ "--row-index": index }}>
               <td>{row.employee_name}</td>
               <td>
                 <span className="readonly-cell">{formatTime(row.time_in)}</span>

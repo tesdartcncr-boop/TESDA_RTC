@@ -127,7 +127,7 @@ select {
   padding: 0.8rem;
   display: grid;
   gap: 0.5rem;
-  animation: rise-in 220ms ease-out;
+  animation: rise-in 220ms ease-out both;
 }
 
 .employee-card p {
@@ -866,7 +866,7 @@ select:hover {
   gap: 0.85rem;
   min-height: 180px;
   box-shadow: 0 12px 24px rgba(24, 31, 36, 0.06);
-  animation: rise-in 220ms ease-out;
+  animation: rise-in 220ms ease-out both;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 
@@ -1069,6 +1069,11 @@ tbody tr:hover td {
   background: rgba(199, 93, 50, 0.05);
 }
 
+.attendance-table tbody tr {
+  animation: row-fade-in 220ms ease-out both;
+  animation-delay: calc(var(--row-index, 0) * 18ms);
+}
+
 td:first-child {
   font-weight: 700;
   white-space: nowrap;
@@ -1184,6 +1189,16 @@ td input {
   --ink: #1c1713;
   --muted: #5d5348;
   --line: rgba(28, 23, 19, 0.1);
+
+@keyframes row-fade-in {
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
+}
   --accent: #c95f30;
   --accent-strong: #7f351e;
   --accent-soft: rgba(201, 95, 48, 0.14);
@@ -1582,7 +1597,7 @@ select:hover {
   gap: 0.85rem;
   min-height: 160px;
   box-shadow: 0 12px 24px rgba(24, 31, 36, 0.06);
-  animation: rise-in 220ms ease-out;
+  animation: rise-in 220ms ease-out both;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 

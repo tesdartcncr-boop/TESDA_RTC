@@ -157,25 +157,50 @@ export default function App() {
     setRows(data);
   }
 
-  async function refreshPageData() {
-    setStatus("Loading data...");
-    try {
-      await Promise.all([
-        loadEmployees(activeCategory),
-        loadAttendance(selectedDate, activeCategory)
-      ]);
-      setStatus("Live");
-    } catch (error) {
-      setStatus(error.message);
+  useEffect(() => {
+    if (!session) {
+      return;
     }
-  }
+
+    let mounted = true;
+
+    loadEmployees(activeCategory).catch((error) => {
+      if (mounted) {
+        setStatus(error.message);
+      }
+    });
+
+    return () => {
+      mounted = false;
+    };
+  }, [activeCategory, session]);
 
   useEffect(() => {
     if (!session) {
       return;
     }
 
-    refreshPageData();
+    let mounted = true;
+
+    async function refreshAttendanceData() {
+      setStatus("Loading data...");
+      try {
+        await loadAttendance(selectedDate, activeCategory);
+        if (mounted) {
+          setStatus("Live");
+        }
+      } catch (error) {
+        if (mounted) {
+          setStatus(error.message);
+        }
+      }
+    }
+
+    refreshAttendanceData();
+
+    return () => {
+      mounted = false;
+    };
   }, [activeCategory, selectedDate, session]);
 
   useEffect(() => {
@@ -411,6 +436,7 @@ export default function App() {
         </div>
 
         <EmployeeGrid
+          key={activeCategory}
           employees={filteredEmployees}
           attendanceByEmployeeId={attendanceByEmployeeId}
           onClock={handleClock}

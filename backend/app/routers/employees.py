@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 
 from ..schemas import EmployeeCreate, EmployeeUpdate
+from ..services.cache_revision import invalidate_cache_revision
 from ..services.passwords import hash_employee_password
 from ..services.realtime import publish_event
 from ..supabase_client import get_supabase_client
@@ -61,6 +62,7 @@ async def create_employee(payload: EmployeeCreate) -> dict:
     raise HTTPException(status_code=500, detail="Failed to create employee.")
 
   created = {key: value for key, value in response.data[0].items() if key != "employee_password_hash"}
+  invalidate_cache_revision()
   await publish_event("employee.created", f"Employee added: {created['name']}", created)
   return created
 
@@ -81,6 +83,7 @@ async def update_employee(employee_id: int, payload: EmployeeUpdate) -> dict:
     raise HTTPException(status_code=404, detail="Employee not found.")
 
   updated = {key: value for key, value in response.data[0].items() if key != "employee_password_hash"}
+  invalidate_cache_revision()
   await publish_event("employee.updated", f"Employee updated: {updated['name']}", updated)
   return updated
 
@@ -99,5 +102,6 @@ async def delete_employee(employee_id: int) -> dict:
   if remaining_employee.data or remaining_attendance.data:
     raise HTTPException(status_code=500, detail="Failed to delete all employee data.")
 
+  invalidate_cache_revision()
   await publish_event("employee.deleted", f"Employee deleted: {existing.data[0]['name']}", {"id": employee_id})
   return {"deleted": employee_id}

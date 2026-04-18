@@ -206,7 +206,7 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
         className={isScrollable ? "employee-grid employee-grid--two-up employee-grid--scroll" : "employee-grid employee-grid--two-up"}
         style={isScrollable ? { maxHeight: "calc((7rem * 6) + (0.85rem * 5))", overflowY: "auto", paddingRight: "0.35rem" } : undefined}
       >
-        {employees.map((employee) => {
+        {employees.map((employee, index) => {
           const attendance = attendanceByEmployeeId.get(employee.id);
           const cardCopy = getRosterCardCopy(attendance);
           const isCompleted = Boolean(
@@ -221,6 +221,7 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
               key={employee.id}
               type="button"
               className={`employee-card employee-card--button ${cardCopy.tone}`}
+              style={{ animationDelay: `${index * 24}ms` }}
               onClick={() => openModal(employee)}
               disabled={isCompleted}
             >

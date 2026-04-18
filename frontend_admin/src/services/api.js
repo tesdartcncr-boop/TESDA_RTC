@@ -23,6 +23,40 @@ function resolveApiBaseUrl() {
 
 const API_BASE_URL = resolveApiBaseUrl();
 
+const CACHE_REVISION_TTL_MS = 5 * 1000;
+let cachedRevision = "";
+let cachedRevisionAt = 0;
+let cachedRevisionPromise = null;
+
+function invalidateCacheRevision() {
+  cachedRevision = "";
+  cachedRevisionAt = 0;
+  cachedRevisionPromise = null;
+}
+
+async function getCacheRevision(forceRefresh = false) {
+  if (!forceRefresh && cachedRevision && Date.now() - cachedRevisionAt < CACHE_REVISION_TTL_MS) {
+    return cachedRevision;
+  }
+
+  if (cachedRevisionPromise) {
+    return cachedRevisionPromise;
+  }
+
+  cachedRevisionPromise = request("/cache-revision")
+    .then((data) => {
+      cachedRevision = String(data?.revision || "");
+      cachedRevisionAt = Date.now();
+      return cachedRevision;
+    })
+    .catch(() => "")
+    .finally(() => {
+      cachedRevisionPromise = null;
+    });
+
+  return cachedRevisionPromise;
+}
+
 function buildSearchParams(params = {}) {
   const searchParams = new URLSearchParams();
 
@@ -38,15 +72,6 @@ function buildSearchParams(params = {}) {
 const MASTER_SHEET_CACHE_PREFIX = "admin-master-sheet-cache:";
 const MASTER_SHEET_CACHE_TTL_MS = 15 * 60 * 1000;
 const inMemoryMasterSheetCache = new Map();
-
-async function getCacheRevision() {
-  try {
-    const data = await request("/cache-revision");
-    return String(data?.revision || "");
-  } catch {
-    return "";
-  }
-}
 
 function getMasterSheetCacheKey(params = {}) {
   const category = String(params.category || "all").trim().toLowerCase();
@@ -240,6 +265,10 @@ export const api = {
     return request(`/attendance/${attendanceId}`, {
       method: "PUT",
       body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      clearMasterSheetCache();
+      return data;
     });
   },
   listAuthorizedEmails() {
@@ -262,6 +291,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify(payload)
     }).then((data) => {
+      invalidateCacheRevision();
       clearMasterSheetCache();
       return data;
     });
@@ -271,12 +301,14 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload)
     }).then((data) => {
+      invalidateCacheRevision();
       clearMasterSheetCache();
       return data;
     });
   },
   deleteEmployee(employeeId) {
     return request(`/employees/${employeeId}`, { method: "DELETE" }).then((data) => {
+      invalidateCacheRevision();
       clearMasterSheetCache();
       return data;
     });
@@ -312,6 +344,7 @@ export const api = {
       method: "PUT",
       body: JSON.stringify(payload)
     }).then((data) => {
+      invalidateCacheRevision();
       clearMasterSheetCache();
       return data;
     });
@@ -320,6 +353,10 @@ export const api = {
     return request("/attendance/master-sheet", {
       method: "PUT",
       body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      clearMasterSheetCache();
+      return data;
     });
   },
   exportMasterSheet(params) {
@@ -346,6 +383,7 @@ export const api = {
       method: "POST",
       body: JSON.stringify({ filename })
     }).then((data) => {
+      invalidateCacheRevision();
       clearMasterSheetCache();
       return data;
     });
