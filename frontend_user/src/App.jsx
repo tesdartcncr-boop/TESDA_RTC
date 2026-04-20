@@ -342,9 +342,7 @@ export default function App() {
             Sign out
           </button>
         </header>
-      </section>
 
-      <section className="surface user-workspace">
         <div className="roster-toolbar">
           <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
 
@@ -367,7 +365,9 @@ export default function App() {
             Clear
           </button>
         </div>
+      </section>
 
+      <section className="surface user-workspace">
         <div className="status-strip user-status-strip">
           <div className="status-card">
             <span>Category</span>
