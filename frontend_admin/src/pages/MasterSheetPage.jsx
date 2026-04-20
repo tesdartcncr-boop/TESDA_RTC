@@ -93,6 +93,46 @@ function formatDuration(minutes) {
   return `${hours}:${String(remainingMinutes).padStart(2, "0")}`;
 }
 
+function parseTimeTokenToMinutes(value) {
+  const token = String(value || "").trim().toUpperCase();
+  if (!token || isLeaveCode(token)) {
+    return null;
+  }
+
+  const twentyFourHourMatch = token.match(/^([01]?\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (twentyFourHourMatch) {
+    return Number(twentyFourHourMatch[1]) * 60 + Number(twentyFourHourMatch[2]);
+  }
+
+  const twelveHourMatch = token.match(/^(\d{1,2}):([0-5]\d)(?::[0-5]\d)?\s*(AM|PM)$/);
+  if (twelveHourMatch) {
+    let hours = Number(twelveHourMatch[1]) % 12;
+    if (twelveHourMatch[3] === "PM") {
+      hours += 12;
+    }
+
+    return hours * 60 + Number(twelveHourMatch[2]);
+  }
+
+  return null;
+}
+
+function formatTotalHours(record) {
+  if (!record || record.leave_type || isLeaveCode(record.time_in) || isLeaveCode(record.time_out)) {
+    return "—";
+  }
+
+  const timeInMinutes = parseTimeTokenToMinutes(record.time_in);
+  const timeOutMinutes = parseTimeTokenToMinutes(record.time_out);
+  if (timeInMinutes === null || timeOutMinutes === null) {
+    return "—";
+  }
+
+  const grossMinutes = Math.max(timeOutMinutes - timeInMinutes, 0);
+  const totalMinutes = Math.max(grossMinutes - 60, 0);
+  return formatDuration(totalMinutes);
+}
+
 function formatPlaceholder(value, fallback = "N/A") {
   const token = String(value || "").trim();
   return token || fallback;
@@ -156,6 +196,7 @@ function buildEmployeePreviewRows(employee, dates, recordsByKey) {
       late: record ? formatDuration(record.late_minutes) : "—",
       undertime: record ? formatDuration(record.undertime_minutes) : "—",
       remarks: formatPlaceholder(record?.remarks, "—"),
+      total_hours: formatTotalHours(record),
       is_weekend: Boolean(dateInfo.is_weekend),
       is_monday: Boolean(dateInfo.is_monday)
     };
@@ -163,7 +204,7 @@ function buildEmployeePreviewRows(employee, dates, recordsByKey) {
 }
 
 function getCategoryLabel(category) {
-  return category === "regular" ? "Regular" : "JO";
+  return category === "regular" ? "Regular" : "Job Order";
 }
 
 function buildRecordKey(employeeId, date) {
@@ -302,6 +343,7 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
               <col className="master-sheet-surname-sheet__time-col" />
               <col className="master-sheet-surname-sheet__time-col" />
               <col className="master-sheet-surname-sheet__remarks-col" />
+              <col className="master-sheet-surname-sheet__total-hours-col" />
             </colgroup>
             <thead>
               <tr>
@@ -312,6 +354,7 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
                 <th>LATE</th>
                 <th>UNDERTIME</th>
                 <th>REMARKS</th>
+                <th>TOTAL HOURS</th>
               </tr>
             </thead>
             <tbody>
@@ -328,6 +371,7 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
                   <td>{row.late}</td>
                   <td>{row.undertime}</td>
                   <td className="master-sheet-surname-sheet__remarks">{row.remarks}</td>
+                  <td>{row.total_hours}</td>
                 </tr>
               ))}
             </tbody>
@@ -774,7 +818,7 @@ export default function MasterSheetPage() {
         <div>
           <p className="section-kicker">Master Record Sheet</p>
           <h2>{monthLabel}</h2>
-          <p className="subtle">Use the tabs to switch between Regular and JO. Month results stay cached while you browse.</p>
+          <p className="subtle">Use the tabs to switch between Regular and Job Order. Month results stay cached while you browse.</p>
         </div>
         <div className="master-sheet-page__controls">
           <label className="master-sheet-month-field">
@@ -809,7 +853,7 @@ export default function MasterSheetPage() {
             className={activeCategory === "jo" ? "mini-tab active" : "mini-tab"}
             onClick={() => setActiveCategory("jo")}
           >
-            JO
+            Job Order
           </button>
         </div>
         <p className="subtle master-sheet-note">Cached month data loads instantly when you return to a tab.</p>

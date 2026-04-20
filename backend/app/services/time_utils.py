@@ -105,7 +105,7 @@ def calculate_dtr_metrics(
 
   time_in_minutes = to_minutes(normalized_in)
   time_out_minutes = to_minutes(normalized_out)
-  schedule_start, _, required_minutes, _break_minutes = get_schedule_details(schedule_type)
+  schedule_start, schedule_end, _, _break_minutes = get_schedule_details(schedule_type)
   late_threshold_minutes = to_minutes(late_threshold)
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start
@@ -114,9 +114,9 @@ def calculate_dtr_metrics(
 
   undertime_minutes = 0
   if time_in_minutes is not None and time_out_minutes is not None:
-    credited_start = max(time_in_minutes, schedule_start)
-    credited_work_minutes = _elapsed_minutes_excluding_lunch(credited_start, time_out_minutes)
-    undertime_minutes = max(required_minutes - credited_work_minutes, 0)
+    # Undertime is counted from the timeout up to the scheduled end of shift.
+    # The fixed lunch window is excluded only if it overlaps that missing interval.
+    undertime_minutes = _elapsed_minutes_excluding_lunch(time_out_minutes, schedule_end)
 
   overtime_minutes = 0
   return late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out

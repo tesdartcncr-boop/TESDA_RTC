@@ -19,7 +19,7 @@ const PAGE_DETAILS = {
   },
   master: {
     label: "Master Sheet",
-    summary: "Edit month-based attendance and day-level schedule overrides with cached Regular and JO views.",
+    summary: "Edit month-based attendance and day-level schedule overrides with cached Regular and Job Order views.",
     accent: "Attendance grid"
   },
   schedule: {

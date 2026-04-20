@@ -8,7 +8,7 @@ from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from ..supabase_client import get_supabase_client
-from .time_utils import is_leave_code
+from .time_utils import is_leave_code, to_minutes
 
 
 def format_duration(minutes: int | None) -> str:
@@ -16,6 +16,23 @@ def format_duration(minutes: int | None) -> str:
   hours = total_minutes // 60
   remaining_minutes = total_minutes % 60
   return f"{hours}:{remaining_minutes:02d}"
+
+
+def _calculate_total_hours(record: dict | None) -> str:
+  if not record:
+    return ""
+
+  if (record.get("leave_type") or "").strip() or is_leave_code(record.get("time_in")) or is_leave_code(record.get("time_out")):
+    return ""
+
+  time_in_minutes = to_minutes(record.get("time_in"))
+  time_out_minutes = to_minutes(record.get("time_out"))
+  if time_in_minutes is None or time_out_minutes is None:
+    return ""
+
+  gross_minutes = max(time_out_minutes - time_in_minutes, 0)
+  total_minutes = max(gross_minutes - 60, 0)
+  return format_duration(total_minutes)
 
 
 def get_month_range(month: str) -> tuple[str, str]:
@@ -314,7 +331,8 @@ def _compose_employee_signature_name(employee: dict, fallback: str = "N/A") -> s
 
 
 def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tuple[int, int]:
-  end_column = 7
+  end_column = 8
+  last_column = get_column_letter(end_column)
   title_fill = PatternFill("solid", fgColor="FFFFFF")
   title_font = Font(color="1F4E79", bold=True, size=11)
   sub_font = Font(color="1F4E79", bold=True, size=10)
@@ -331,10 +349,10 @@ def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tup
   sheet.freeze_panes = "A14"
   sheet.print_title_rows = "$1:$13"
 
-  sheet.merge_cells("A2:G2")
-  sheet.merge_cells("A3:G3")
-  sheet.merge_cells("A5:G5")
-  sheet.merge_cells("A6:G6")
+  sheet.merge_cells(f"A2:{last_column}2")
+  sheet.merge_cells(f"A3:{last_column}3")
+  sheet.merge_cells(f"A5:{last_column}5")
+  sheet.merge_cells(f"A6:{last_column}6")
   sheet.cell(2, 1, "TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY (TESDA)")
   sheet.cell(3, 1, "National Capital Region - MuniPalasTaPat")
   sheet.cell(5, 1, "DAILY TIME RECORD")
@@ -356,7 +374,7 @@ def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tup
   sheet.cell(8, 1).font = label_font
   sheet.cell(8, 1).alignment = Alignment(horizontal="left", vertical="center")
 
-  sheet.merge_cells("B8:G8")
+  sheet.merge_cells(f"B8:{last_column}8")
   sheet.cell(8, 2, _display_placeholder(str(employee.get("employee_no") or employee.get("id") or "").strip()))
   sheet.cell(8, 2).font = value_font
   sheet.cell(8, 2).alignment = Alignment(horizontal="left", vertical="center")
@@ -364,7 +382,7 @@ def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tup
   sheet.cell(9, 1, "Last Name:")
   sheet.cell(9, 1).font = label_font
   sheet.cell(9, 1).alignment = Alignment(horizontal="left", vertical="center")
-  sheet.merge_cells("B9:G9")
+  sheet.merge_cells(f"B9:{last_column}9")
   sheet.cell(9, 2, _display_placeholder((employee.get("last_name") or employee.get("surname") or employee.get("name") or "").strip().upper()))
   sheet.cell(9, 2).font = value_font
   sheet.cell(9, 2).alignment = Alignment(horizontal="left", vertical="center")
@@ -372,7 +390,7 @@ def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tup
   sheet.cell(10, 1, "First Name:")
   sheet.cell(10, 1).font = label_font
   sheet.cell(10, 1).alignment = Alignment(horizontal="left", vertical="center")
-  sheet.merge_cells("B10:G10")
+  sheet.merge_cells(f"B10:{last_column}10")
   sheet.cell(10, 2, _compose_employee_first_name(employee, "N/A").upper())
   sheet.cell(10, 2).font = value_font
   sheet.cell(10, 2).alignment = Alignment(horizontal="left", vertical="center")
@@ -380,7 +398,7 @@ def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tup
   sheet.cell(11, 1, "Office:")
   sheet.cell(11, 1).font = label_font
   sheet.cell(11, 1).alignment = Alignment(horizontal="left", vertical="center")
-  sheet.merge_cells("B11:G11")
+  sheet.merge_cells(f"B11:{last_column}11")
   office_value = _display_placeholder((employee.get("office") or "").strip().upper())
   sheet.cell(11, 2, office_value)
   sheet.cell(11, 2).font = value_font
@@ -575,6 +593,7 @@ def _write_employee_sheet(sheet, employee: dict, dates: list[dict], records: lis
     time_out_value = _format_employee_time(_display_master_sheet_value(record or {}, "time_out"))
     late_value = format_duration(record.get("late_minutes")) if record else ""
     undertime_value = format_duration(record.get("undertime_minutes")) if record else ""
+    total_hours_value = _calculate_total_hours(record)
 
     detail_rows.append(
       {
@@ -585,6 +604,7 @@ def _write_employee_sheet(sheet, employee: dict, dates: list[dict], records: lis
         "late": late_value,
         "undertime": undertime_value,
         "remarks": (record.get("remarks") or "").strip() if record else "",
+        "total_hours": total_hours_value,
       }
     )
 
@@ -602,7 +622,7 @@ def _write_employee_sheet(sheet, employee: dict, dates: list[dict], records: lis
   sheet.cell(start_row, 1).font = header_font
   sheet.cell(start_row, 1).alignment = Alignment(horizontal="center", vertical="center")
 
-  for column_index, header_text in enumerate(["TIME-IN", "TIME-\nOUT", "LATE", "UNDERTIME", "REMARKS"], start=3):
+  for column_index, header_text in enumerate(["TIME-IN", "TIME-\nOUT", "LATE", "UNDERTIME", "REMARKS", "TOTAL\nHOURS"], start=3):
     cell = sheet.cell(start_row, column_index, header_text)
     cell.fill = header_fill
     cell.font = header_font
@@ -615,6 +635,7 @@ def _write_employee_sheet(sheet, employee: dict, dates: list[dict], records: lis
   sheet.column_dimensions["E"].width = 10
   sheet.column_dimensions["F"].width = 10
   sheet.column_dimensions["G"].width = 17
+  sheet.column_dimensions["H"].width = 12
   sheet.row_dimensions[start_row].height = 22
 
   data_start_row = start_row + 1
@@ -627,7 +648,8 @@ def _write_employee_sheet(sheet, employee: dict, dates: list[dict], records: lis
       row_data["time_out"],
       row_data["late"],
       row_data["undertime"],
-      row_data["remarks"]
+      row_data["remarks"],
+      row_data["total_hours"]
     ]
 
     for column_index, value in enumerate(values, start=1):

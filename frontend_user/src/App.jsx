@@ -35,11 +35,11 @@ function getMillisecondsUntilNextManilaMidnight(referenceDate = new Date()) {
 }
 
 function getCategoryTitle(category) {
-  return category === "regular" ? "Regular Employees" : "JO Employees";
+  return category === "regular" ? "Regular Employees" : "Job Order Employees";
 }
 
 function getCategorySummary(category) {
-  return category === "regular" ? "Permanent staff roster" : "Job order roster";
+  return category === "regular" ? "Permanent staff roster" : "Job Order roster";
 }
 
 function formatDisplayDate(dateIso) {

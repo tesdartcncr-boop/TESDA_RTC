@@ -297,8 +297,29 @@ td input {
   gap: 0.3rem;
 }
 
+.employee-password-field--icon {
+  min-width: 0;
+}
+
 .employee-password-field input {
   width: 100%;
+}
+
+.clock-modal__form {
+  display: grid;
+  gap: 0.9rem;
+}
+
+.clock-modal__form .employee-password-field input {
+  padding-right: 2.8rem;
+}
+
+.clock-modal__form .password-toggle--icon {
+  right: 0.35rem;
+}
+
+.clock-modal__form .clock-modal__actions {
+  margin-top: 0.1rem;
 }
 
 .readonly-cell {

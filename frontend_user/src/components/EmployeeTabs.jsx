@@ -18,8 +18,8 @@ export default function EmployeeTabs({ activeCategory, onChange }) {
         className={activeCategory === "jo" ? "tab active" : "tab"}
         onClick={() => onChange("jo")}
       >
-        <span className="tab-label">JO</span>
-        <span className="tab-note">Job order roster</span>
+        <span className="tab-label">Job Order</span>
+        <span className="tab-note">Job Order roster</span>
       </button>
     </div>
   );
