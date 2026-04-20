@@ -123,14 +123,11 @@ function validateUpdatePayload(parts) {
   return "";
 }
 
-function EyeIcon({ isOpen }) {
-  return isOpen ? (
+function EyeIcon() {
+  return (
     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M12 5c5.5 0 9.7 4.3 11 7-1.3 2.7-5.5 7-11 7S2.3 14.7 1 12c1.3-2.7 5.5-7 11-7Zm0 2c-3.7 0-7 2.6-8.7 5 1.7 2.4 5 5 8.7 5s7-2.6 8.7-5C19 9.6 15.7 7 12 7Zm0 1.8A3.2 3.2 0 1 1 12 15a3.2 3.2 0 0 1 0-6.2Zm0 2A1.2 1.2 0 1 0 12 13a1.2 1.2 0 0 0 0-2.4Z" />
-    </svg>
-  ) : (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="m2.2 3.6 18.2 18.2-1.4 1.4-3.3-3.3c-1.4.7-3 .9-3.7.9-5.5 0-9.7-4.3-11-7 .8-1.6 2.2-3.5 4.1-5.1L.8 5 2.2 3.6Zm7.1 7.1a3.2 3.2 0 0 0 4 4l-4-4Zm-2.7-2.7 2.1 2.1a5.2 5.2 0 0 1 7.1 7.1l1.7 1.7C18 17 22 12.8 23 10c-1.3-2.7-5.5-7-11-7-1.4 0-3.1.3-4.9 1.3ZM12 7a5 5 0 0 1 5 5c0 .4 0 .8-.1 1.1l-1.8-1.8A3.2 3.2 0 0 0 12 8.8c-.4 0-.8.1-1.1.2L9 7.1c.9-.1 1.9-.1 3-.1Zm-7.8 5c1.7 2.4 5 5 8.8 5 .7 0 1.5-.1 2.2-.3l-1.8-1.8A3.2 3.2 0 0 1 9.1 11L6.8 8.7C5.2 9.8 3.9 11.2 4.2 12Z" />
+      <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" />
+      <circle cx="12" cy="12" r="3" fill="none" stroke="currentColor" strokeWidth="1.8" />
     </svg>
   );
 }
@@ -166,12 +163,12 @@ function PasswordField({
       />
       <button
         type="button"
-        className="password-toggle password-toggle--icon"
+        className="password-toggle--icon"
         onClick={onToggle}
         aria-pressed={isVisible}
         aria-label={isVisible ? `Hide ${label.toLowerCase()}` : `Show ${label.toLowerCase()}`}
       >
-        <EyeIcon isOpen={isVisible} />
+        <EyeIcon />
       </button>
     </div>
   );

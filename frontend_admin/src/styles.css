@@ -1749,23 +1749,37 @@ tbody tr:hover td {
 }
 
 .password-toggle--icon {
+  all: unset;
   position: absolute;
   top: 50%;
   right: 0.35rem;
   transform: translateY(-50%);
-  width: 2rem;
-  min-width: 2rem;
-  height: 2rem;
-  display: grid;
-  place-items: center;
-  padding: 0;
-  border-radius: 999px;
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--accent-strong);
+  line-height: 0;
 }
 
 .password-toggle--icon svg {
   width: 1rem;
   height: 1rem;
   fill: currentColor;
+}
+
+.password-toggle--icon:hover {
+  background: transparent;
+  color: var(--ink);
+  filter: none;
+  transform: translateY(-50%);
+}
+
+.password-toggle--icon:focus-visible {
+  outline: 2px solid rgba(15, 107, 107, 0.35);
+  outline-offset: 2px;
 }
 
 .password-toggle:hover {

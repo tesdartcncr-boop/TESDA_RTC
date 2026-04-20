@@ -310,12 +310,52 @@ td input {
   gap: 0.9rem;
 }
 
+.clock-modal__form .password-input-shell {
+  position: relative;
+  display: grid;
+}
+
 .clock-modal__form .employee-password-field input {
   padding-right: 2.8rem;
 }
 
+.clock-modal__form .password-toggle {
+  min-width: 4.7rem;
+  padding-inline: 0.75rem;
+  background: rgba(15, 107, 107, 0.08);
+  color: var(--accent-strong);
+  border-color: rgba(15, 107, 107, 0.16);
+}
+
 .clock-modal__form .password-toggle--icon {
+  all: unset;
+  position: absolute;
+  top: 50%;
   right: 0.35rem;
+  transform: translateY(-50%);
+  width: 1rem;
+  height: 1rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--accent-strong);
+  line-height: 0;
+}
+
+.clock-modal__form .password-toggle--icon svg {
+  width: 1rem;
+  height: 1rem;
+  fill: currentColor;
+}
+
+.clock-modal__form .password-toggle--icon:hover {
+  color: var(--ink);
+}
+
+.clock-modal__form .password-toggle--icon:focus-visible {
+  outline: 2px solid rgba(15, 107, 107, 0.35);
+  outline-offset: 2px;
 }
 
 .clock-modal__form .clock-modal__actions {
