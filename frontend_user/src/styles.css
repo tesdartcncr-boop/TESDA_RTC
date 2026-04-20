@@ -531,6 +531,29 @@ p {
   gap: 1rem;
 }
 
+.user-header-card {
+  display: grid;
+  gap: 0.7rem;
+}
+
+.user-topbar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+}
+
+.user-topbar__copy {
+  display: grid;
+  gap: 0.12rem;
+}
+
+.user-topbar__copy h1 {
+  margin: 0;
+  font-size: clamp(1.3rem, 2.8vw, 2rem);
+  line-height: 1;
+}
+
 .user-workspace .employee-grid {
   margin-top: 0.25rem;
 }
@@ -1122,6 +1145,10 @@ td input {
 @media (max-width: 1024px) {
   .user-page {
     width: min(980px, 97vw);
+  }
+
+  .user-topbar {
+    grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .user-header {
@@ -1948,6 +1975,15 @@ td input {
     width: min(720px, 95vw);
   }
 
+  .user-topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .user-topbar .secondary-btn {
+    width: fit-content;
+  }
+
   .hero,
   .surface {
     border-radius: 24px;
@@ -2092,8 +2128,16 @@ td input {
 }
 
 @media (max-width: 900px) {
-  .employee-grid--two-up {
-    grid-template-columns: 1fr;
+  .hero {
+    display: none;
+  }
+
+  .dashboard-header {
+    gap: 0.75rem;
+  }
+
+  .dashboard-header__copy h2 {
+    font-size: clamp(1.45rem, 4.2vw, 2.1rem);
   }
 }
 
@@ -2176,5 +2220,11 @@ td input {
 
   .employee-roster-panel {
     padding-top: 0.2rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .employee-grid--two-up {
+    grid-template-columns: 1fr;
   }
 }

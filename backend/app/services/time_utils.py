@@ -4,6 +4,8 @@ from zoneinfo import ZoneInfo
 from ..config import settings
 
 LEAVE_CODES = {"SL", "VL", "OB"}
+LUNCH_BREAK_START = 12 * 60
+LUNCH_BREAK_END = 13 * 60
 SCHEDULE_DEFINITIONS = {
   "A": {"start": "08:00", "end": "17:00", "required_minutes": 480, "break_minutes": 60},
   "B": {"start": "08:00", "end": "19:00", "required_minutes": 600, "break_minutes": 60}
@@ -67,6 +69,21 @@ def get_schedule_window(schedule_type: str | None) -> tuple[int, int]:
   return start_minutes, end_minutes
 
 
+def _elapsed_minutes_excluding_lunch(start_minutes: int | None, end_minutes: int | None) -> int:
+  if start_minutes is None or end_minutes is None:
+    return 0
+
+  gross_minutes = max(end_minutes - start_minutes, 0)
+  if gross_minutes == 0:
+    return 0
+
+  lunch_overlap_start = max(start_minutes, LUNCH_BREAK_START)
+  lunch_overlap_end = min(end_minutes, LUNCH_BREAK_END)
+  lunch_overlap_minutes = max(lunch_overlap_end - lunch_overlap_start, 0)
+
+  return max(gross_minutes - lunch_overlap_minutes, 0)
+
+
 def calculate_dtr_metrics(
   schedule_type: str,
   time_in: str | None,
@@ -88,18 +105,17 @@ def calculate_dtr_metrics(
 
   time_in_minutes = to_minutes(normalized_in)
   time_out_minutes = to_minutes(normalized_out)
-  schedule_start, _, required_minutes, break_minutes = get_schedule_details(schedule_type)
+  schedule_start, _, required_minutes, _break_minutes = get_schedule_details(schedule_type)
   late_threshold_minutes = to_minutes(late_threshold)
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start
 
-  late_minutes = max((time_in_minutes or late_threshold_minutes) - late_threshold_minutes, 0)
+  late_minutes = _elapsed_minutes_excluding_lunch(late_threshold_minutes, time_in_minutes)
 
   undertime_minutes = 0
   if time_in_minutes is not None and time_out_minutes is not None:
     credited_start = max(time_in_minutes, schedule_start)
-    gross_work_minutes = max(time_out_minutes - credited_start, 0)
-    credited_work_minutes = max(gross_work_minutes - break_minutes, 0)
+    credited_work_minutes = _elapsed_minutes_excluding_lunch(credited_start, time_out_minutes)
     undertime_minutes = max(required_minutes - credited_work_minutes, 0)
 
   overtime_minutes = 0

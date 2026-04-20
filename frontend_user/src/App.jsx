@@ -55,20 +55,6 @@ function formatDisplayDate(dateIso) {
   }).format(date);
 }
 
-function getStatusTone(status) {
-  const normalized = status.toLowerCase();
-
-  if (normalized.includes("error") || normalized.includes("failed")) {
-    return "danger";
-  }
-
-  if (normalized.includes("loading") || normalized.includes("saving")) {
-    return "busy";
-  }
-
-  return "live";
-}
-
 export default function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -308,7 +294,6 @@ export default function App() {
 
   const activeCategoryTitle = getCategoryTitle(activeCategory);
   const activeCategorySummary = getCategorySummary(activeCategory);
-  const statusTone = getStatusTone(status);
   const activeScheduleType = scheduleSetting?.schedule_type || selectedSchedule;
   const scheduleLocked = Boolean(scheduleSetting?.has_override);
   const selectedScheduleLabel = activeScheduleType === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
@@ -347,66 +332,19 @@ export default function App() {
 
   return (
     <main className="page user-page">
-      <header className="hero">
-        <div className="hero-copy">
-          <p className="eyebrow">Attendance dashboard</p>
-          <h1>DTR Automation User Portal</h1>
-          <p>
-            Clock employees from a calm, editorial workspace that keeps Manila dates, roster switching, and clocking
-            actions on one screen.
-          </p>
-        </div>
-
-        <div className={`hero-spotlight hero-spotlight--${statusTone}`}>
-          <span>Live status</span>
-          <strong>{status}</strong>
-          <div className="hero-metric">
-            <span>Selected date</span>
-            <strong>{formatDisplayDate(selectedDate)}</strong>
+      <section className="surface user-header-card">
+        <header className="user-topbar">
+          <div className="user-topbar__copy">
+            <p className="section-kicker">Attendance dashboard</p>
+            <h1>DTR Automation User Portal</h1>
           </div>
-          <div className="hero-metric">
-            <span>Active roster</span>
-            <strong>{activeCategoryTitle}</strong>
-          </div>
-        </div>
-      </header>
+          <button type="button" className="secondary-btn" onClick={handleSignOut}>
+            Sign out
+          </button>
+        </header>
+      </section>
 
       <section className="surface user-workspace">
-        <div className="dashboard-header">
-          <div className="dashboard-header__copy">
-            <p className="section-kicker">Roster workspace</p>
-            <h2>Switch category, search the roster, and clock directly from the cards</h2>
-            <p className="hint">Search, roster selection, and clocking stay together so the workflow stays on one view.</p>
-          </div>
-
-          <div className="dashboard-header__meta">
-            <div className="dashboard-stats">
-              <article className="dashboard-stat">
-                <span>Category</span>
-                <strong>{activeCategoryTitle}</strong>
-                <p>{activeCategorySummary}</p>
-              </article>
-              <article className="dashboard-stat">
-                <span>Visible employees</span>
-                <strong>{filteredEmployees.length}</strong>
-                <p>{employees.length} loaded</p>
-              </article>
-              <article className="dashboard-stat">
-                <span>Schedule</span>
-                <strong>{selectedScheduleLabel}</strong>
-                <p>{formatDisplayDate(selectedDate)}</p>
-              </article>
-            </div>
-
-            <div className="session-bar user-session-bar">
-              <span>{session.user.email}</span>
-              <button type="button" className="secondary-btn" onClick={handleSignOut}>
-                Sign out
-              </button>
-            </div>
-          </div>
-        </div>
-
         <div className="roster-toolbar">
           <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
 
