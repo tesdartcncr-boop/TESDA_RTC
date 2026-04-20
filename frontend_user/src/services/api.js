@@ -1,5 +1,5 @@
 import { supabase } from "./supabase";
-import { clearPortalSession, getPortalSession } from "./session";
+import { getPortalSession } from "./session";
 
 const FALLBACK_PRODUCTION_API_URL = "https://tesda-dtr-system-backend.onrender.com";
 const EMPLOYEE_CACHE_PREFIX = "dtr_employee_cache:v1:";
@@ -10,6 +10,7 @@ const CACHE_REVISION_TTL_MS = 5 * 1000;
 let cachedRevision = "";
 let cachedRevisionAt = 0;
 let cachedRevisionPromise = null;
+const SERVER_ERROR_STATUSES = new Set([500, 502, 503, 504]);
 
 function invalidateCacheRevision() {
   cachedRevision = "";
@@ -84,6 +85,18 @@ function formatErrorDetail(detail) {
   }
 
   return "";
+}
+
+function notifyServerIssue(message) {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent("server:error", {
+    detail: {
+      message
+    }
+  }));
 }
 
 function getEmployeeCacheKey(category) {
@@ -178,14 +191,22 @@ async function getAccessToken() {
 
 async function request(path, options = {}) {
   const accessToken = await getAccessToken();
-  const response = await fetch(`${API_BASE_URL}${path}`, {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-  });
+  let response;
+
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        "Content-Type": "application/json",
+        ...(options.headers || {}),
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+    });
+  } catch {
+    const message = "Server disconnected. Please refresh the page.";
+    notifyServerIssue(message);
+    throw new Error(message);
+  }
 
   if (!response.ok) {
     const contentType = response.headers.get("content-type") || "";
@@ -201,10 +222,10 @@ async function request(path, options = {}) {
       }
     }
 
-    if (response.status === 401 || response.status === 403) {
-      clearPortalSession();
-      await supabase.auth.signOut().catch(() => {});
+    if (SERVER_ERROR_STATUSES.has(response.status)) {
+      notifyServerIssue("Server error. Please refresh the page.");
     }
+
     throw new Error(errorMessage);
   }
 

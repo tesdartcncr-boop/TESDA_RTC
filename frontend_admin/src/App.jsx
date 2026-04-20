@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import LoginScreen from "./components/LoginScreen";
 import NavBar from "./components/NavBar";
 import AuthorizedEmailsPage from "./pages/AuthorizedEmailsPage";
@@ -53,6 +53,8 @@ export default function App() {
   const [authMessage, setAuthMessage] = useState("");
   const [activePage, setActivePage] = useState("employees");
   const [updates, setUpdates] = useState([]);
+  const [serverIssue, setServerIssue] = useState("");
+  const serverRefreshTimerRef = useRef(null);
 
   useEffect(() => {
     let mounted = true;
@@ -98,6 +100,8 @@ export default function App() {
       return undefined;
     }
 
+    let isCleaningUp = false;
+    let hasReportedDisconnect = false;
     const socket = connectRealtime((payload) => {
       setUpdates((prev) => [payload.message || "Live update received", ...prev].slice(0, 8));
 
@@ -128,12 +132,78 @@ export default function App() {
       }
     }, session.access_token);
 
-    return () => socket.close();
+    const reportDisconnect = (message) => {
+      if (isCleaningUp || hasReportedDisconnect) {
+        return;
+      }
+
+      hasReportedDisconnect = true;
+      window.dispatchEvent(new CustomEvent("server:error", {
+        detail: { message }
+      }));
+    };
+
+    socket.onclose = () => {
+      reportDisconnect("Realtime connection lost. Please refresh the page.");
+    };
+
+    socket.onerror = () => {
+      reportDisconnect("Realtime connection lost. Please refresh the page.");
+    };
+
+    return () => {
+      isCleaningUp = true;
+      socket.close();
+    };
   }, [session?.access_token]);
+
+  useEffect(() => {
+    function handleServerIssue(event) {
+      const message = event.detail?.message || "Server disconnected. Please refresh the page.";
+      setServerIssue(message);
+    }
+
+    window.addEventListener("server:error", handleServerIssue);
+    return () => window.removeEventListener("server:error", handleServerIssue);
+  }, []);
+
+  useEffect(() => {
+    if (!serverIssue) {
+      return undefined;
+    }
+
+    if (serverRefreshTimerRef.current) {
+      window.clearTimeout(serverRefreshTimerRef.current);
+    }
+
+    serverRefreshTimerRef.current = window.setTimeout(() => {
+      window.location.reload();
+    }, 5000);
+
+    return () => {
+      if (serverRefreshTimerRef.current) {
+        window.clearTimeout(serverRefreshTimerRef.current);
+        serverRefreshTimerRef.current = null;
+      }
+    };
+  }, [serverIssue]);
 
   const latestEvent = useMemo(() => updates[0] || "No updates yet", [updates]);
   const activePageInfo = PAGE_DETAILS[activePage] || PAGE_DETAILS.employees;
   const isMasterPage = activePage === "master";
+  const serverIssuePopup = serverIssue ? (
+    <div className="server-error-backdrop" role="presentation">
+      <section className="server-error-card" role="alertdialog" aria-modal="true" aria-labelledby="server-error-title">
+        <p className="section-kicker">Connection lost</p>
+        <h2 id="server-error-title">Server disconnected</h2>
+        <p>{serverIssue}</p>
+        <p className="subtle">This page will refresh automatically in a few seconds.</p>
+        <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
+          Refresh now
+        </button>
+      </section>
+    </div>
+  ) : null;
 
   async function handleSignOut() {
     clearPortalSession();
@@ -144,30 +214,37 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <LoginScreen
-        portalName="DTR Automation Admin Portal"
-        description="Checking your session before opening the admin dashboard."
-        errorMessage="Checking your session..."
-      />
+      <>
+        <LoginScreen
+          portalName="DTR Automation Admin Portal"
+          description="Checking your session before opening the admin dashboard."
+          errorMessage="Checking your session..."
+        />
+        {serverIssuePopup}
+      </>
     );
   }
 
   if (!session) {
     return (
-      <LoginScreen
-        portalName="DTR Automation Admin Portal"
-        description="Use an approved TESDA email to request an OTP and open the admin portal."
-        errorMessage={authMessage}
-        onAuthenticated={(nextSession) => {
-          setSession(nextSession);
-          setAuthMessage("");
-          setAuthReady(true);
-        }}
-      />
+      <>
+        <LoginScreen
+          portalName="DTR Automation Admin Portal"
+          description="Use an approved TESDA email to request an OTP and open the admin portal."
+          errorMessage={authMessage}
+          onAuthenticated={(nextSession) => {
+            setSession(nextSession);
+            setAuthMessage("");
+            setAuthReady(true);
+          }}
+        />
+        {serverIssuePopup}
+      </>
     );
   }
 
   return (
+    <>
     <main className={isMasterPage ? "admin-page admin-page--master" : "admin-page"}>
       <header className="admin-hero">
         <div className="dashboard-header">
@@ -235,5 +312,7 @@ export default function App() {
         </ul>
       </section>
     </main>
+    {serverIssuePopup}
+    </>
   );
 }

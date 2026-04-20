@@ -68,10 +68,12 @@ export default function App() {
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("Ready");
+  const [serverIssue, setServerIssue] = useState("");
   const manilaDateRef = useRef(getManilaDate());
   const activeCategoryRef = useRef(activeCategory);
   const selectedDateRef = useRef(selectedDate);
   const loadRequestRef = useRef(0);
+  const serverRefreshTimerRef = useRef(null);
 
   useEffect(() => {
     const syncManilaDate = () => {
@@ -105,6 +107,38 @@ export default function App() {
   useEffect(() => {
     selectedDateRef.current = selectedDate;
   }, [selectedDate]);
+
+  useEffect(() => {
+    function handleServerIssue(event) {
+      const message = event.detail?.message || "Server disconnected. Please refresh the page.";
+      setServerIssue(message);
+      setStatus(message);
+    }
+
+    window.addEventListener("server:error", handleServerIssue);
+    return () => window.removeEventListener("server:error", handleServerIssue);
+  }, []);
+
+  useEffect(() => {
+    if (!serverIssue) {
+      return undefined;
+    }
+
+    if (serverRefreshTimerRef.current) {
+      window.clearTimeout(serverRefreshTimerRef.current);
+    }
+
+    serverRefreshTimerRef.current = window.setTimeout(() => {
+      window.location.reload();
+    }, 5000);
+
+    return () => {
+      if (serverRefreshTimerRef.current) {
+        window.clearTimeout(serverRefreshTimerRef.current);
+        serverRefreshTimerRef.current = null;
+      }
+    };
+  }, [serverIssue]);
 
   useEffect(() => {
     let mounted = true;
@@ -216,6 +250,8 @@ export default function App() {
       return undefined;
     }
 
+    let isCleaningUp = false;
+    let hasReportedDisconnect = false;
     const socket = connectRealtime((payload) => {
       const currentCategory = activeCategoryRef.current;
       const currentDate = selectedDateRef.current;
@@ -234,7 +270,27 @@ export default function App() {
       }
     }, session.access_token);
 
+    const reportDisconnect = (message) => {
+      if (isCleaningUp || hasReportedDisconnect) {
+        return;
+      }
+
+      hasReportedDisconnect = true;
+      window.dispatchEvent(new CustomEvent("server:error", {
+        detail: { message }
+      }));
+    };
+
+    socket.onclose = () => {
+      reportDisconnect("Realtime connection lost. Please refresh the page.");
+    };
+
+    socket.onerror = () => {
+      reportDisconnect("Realtime connection lost. Please refresh the page.");
+    };
+
     return () => {
+      isCleaningUp = true;
       socket.close();
     };
   }, [session?.access_token]);
@@ -285,6 +341,19 @@ export default function App() {
   const activeScheduleType = scheduleSetting?.schedule_type || selectedSchedule;
   const scheduleLocked = Boolean(scheduleSetting?.has_override);
   const selectedScheduleLabel = activeScheduleType === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
+  const serverIssuePopup = serverIssue ? (
+    <div className="server-error-backdrop" role="presentation">
+      <section className="server-error-card" role="alertdialog" aria-modal="true" aria-labelledby="server-error-title">
+        <p className="section-kicker">Connection lost</p>
+        <h2 id="server-error-title">Server disconnected</h2>
+        <p>{serverIssue}</p>
+        <p className="subtle">This page will refresh automatically in a few seconds.</p>
+        <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
+          Refresh now
+        </button>
+      </section>
+    </div>
+  ) : null;
 
   async function handleSignOut() {
     clearPortalSession();
@@ -295,26 +364,32 @@ export default function App() {
 
   if (!authReady) {
     return (
-      <LoginScreen
-        portalName="DTR Automation User Portal"
-        description="Checking your session before opening the attendance dashboard."
-        errorMessage="Checking your session..."
-      />
+      <>
+        <LoginScreen
+          portalName="DTR Automation User Portal"
+          description="Checking your session before opening the attendance dashboard."
+          errorMessage="Checking your session..."
+        />
+        {serverIssuePopup}
+      </>
     );
   }
 
   if (!session) {
     return (
-      <LoginScreen
-        portalName="DTR Automation User Portal"
-        description="Use an approved TESDA email to request an OTP and open the user portal."
-        errorMessage={authMessage}
-        onAuthenticated={(nextSession) => {
-          setSession(nextSession);
-          setAuthMessage("");
-          setAuthReady(true);
-        }}
-      />
+      <>
+        <LoginScreen
+          portalName="DTR Automation User Portal"
+          description="Use an approved TESDA email to request an OTP and open the user portal."
+          errorMessage={authMessage}
+          onAuthenticated={(nextSession) => {
+            setSession(nextSession);
+            setAuthMessage("");
+            setAuthReady(true);
+          }}
+        />
+        {serverIssuePopup}
+      </>
     );
   }
 

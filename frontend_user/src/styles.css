@@ -51,6 +51,41 @@ p {
   box-shadow: 0 8px 20px rgba(32, 27, 22, 0.05);
 }
 
+.server-error-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(18, 14, 11, 0.58);
+  backdrop-filter: blur(10px);
+}
+
+.server-error-card {
+  width: min(520px, 100%);
+  display: grid;
+  gap: 0.8rem;
+  padding: 1.4rem;
+  border-radius: 18px;
+  border: 1px solid rgba(178, 77, 44, 0.2);
+  background: linear-gradient(180deg, #fffdf8 0%, #f8f0e7 100%);
+  box-shadow: 0 22px 54px rgba(32, 27, 22, 0.2);
+}
+
+.server-error-card h2 {
+  font-size: 1.55rem;
+}
+
+.server-error-card p {
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.server-error-card .primary-btn {
+  width: fit-content;
+}
+
 .controls {
   display: grid;
   gap: 0.75rem;

@@ -2,6 +2,18 @@ import { useState } from "react";
 import { API_BASE_URL } from "../services/api";
 import { setPortalSession } from "../services/session";
 
+function notifyServerIssue(message) {
+  if (typeof window === "undefined" || typeof window.dispatchEvent !== "function") {
+    return;
+  }
+
+  window.dispatchEvent(new CustomEvent("server:error", {
+    detail: {
+      message
+    }
+  }));
+}
+
 export default function LoginScreen({ portalName, description, errorMessage = "", onAuthenticated }) {
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -28,16 +40,26 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
         body: JSON.stringify({ email: normalizedEmail })
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
+        if (response.status >= 500) {
+          notifyServerIssue("Server error. Please refresh the page.");
+        }
+
         throw new Error(data.detail || "Failed to send OTP");
       }
 
       setIsCodeSent(true);
       setStatus("OTP generated. Check your email shortly.");
     } catch (error) {
-      setStatus(error.message);
+      const message = error instanceof Error ? error.message : "Failed to send OTP";
+
+      if (/fetch|network/i.test(message)) {
+        notifyServerIssue("Server disconnected. Please refresh the page.");
+      }
+
+      setStatus(message);
     } finally {
       setIsSending(false);
     }
@@ -67,9 +89,13 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
         body: JSON.stringify({ email: normalizedEmail, otp_code: otp.trim() })
       });
 
-      const verifyData = await verifyResponse.json();
+      const verifyData = await verifyResponse.json().catch(() => ({}));
 
       if (!verifyResponse.ok) {
+        if (verifyResponse.status >= 500) {
+          notifyServerIssue("Server error. Please refresh the page.");
+        }
+
         throw new Error(verifyData.detail || "Invalid OTP code");
       }
 
@@ -89,7 +115,13 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
       onAuthenticated?.(nextSession);
       setStatus("Access granted.");
     } catch (error) {
-      setStatus(error.message);
+      const message = error instanceof Error ? error.message : "Invalid OTP code";
+
+      if (/fetch|network/i.test(message)) {
+        notifyServerIssue("Server disconnected. Please refresh the page.");
+      }
+
+      setStatus(message);
     } finally {
       setIsVerifying(false);
     }
