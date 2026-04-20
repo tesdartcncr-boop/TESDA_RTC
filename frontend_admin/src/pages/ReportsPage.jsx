@@ -46,6 +46,15 @@ export default function ReportsPage() {
     loadReports();
   }, [month]);
 
+  useEffect(() => {
+    function handleReportsInvalidate() {
+      loadReports();
+    }
+
+    window.addEventListener("reports:invalidate", handleReportsInvalidate);
+    return () => window.removeEventListener("reports:invalidate", handleReportsInvalidate);
+  }, [month]);
+
   async function exportFile(format) {
     try {
       const blob = await api.exportReport(format, month);

@@ -6,6 +6,7 @@ import EmployeesPage from "./pages/EmployeesPage";
 import MasterSheetPage from "./pages/MasterSheetPage";
 import ReportsPage from "./pages/ReportsPage";
 import ScheduleSettingsPage from "./pages/ScheduleSettingsPage";
+import { api } from "./services/api";
 import { clearPortalSession, getPortalSession } from "./services/session";
 import { supabase } from "./services/supabase";
 import { connectRealtime } from "./services/socket";
@@ -99,6 +100,32 @@ export default function App() {
 
     const socket = connectRealtime((payload) => {
       setUpdates((prev) => [payload.message || "Live update received", ...prev].slice(0, 8));
+
+      if (typeof window === "undefined") {
+        return;
+      }
+
+      const dispatchUpdate = (eventName) => {
+        window.dispatchEvent(new CustomEvent(eventName, { detail: payload }));
+      };
+
+      if (payload.type === "employee.created" || payload.type === "employee.updated" || payload.type === "employee.deleted") {
+        api.clearMasterSheetCache();
+        dispatchUpdate("employees:invalidate");
+        dispatchUpdate("reports:invalidate");
+      } else if (payload.type === "attendance.updated") {
+        api.clearMasterSheetCache();
+        dispatchUpdate("reports:invalidate");
+        dispatchUpdate("schedule-settings:invalidate");
+      } else if (payload.type === "settings.auth_email.added" || payload.type === "settings.auth_email.updated") {
+        dispatchUpdate("auth-emails:invalidate");
+      } else if (payload.type === "backup.restored") {
+        api.clearMasterSheetCache();
+        dispatchUpdate("employees:invalidate");
+        dispatchUpdate("reports:invalidate");
+        dispatchUpdate("schedule-settings:invalidate");
+        dispatchUpdate("auth-emails:invalidate");
+      }
     }, session.access_token);
 
     return () => socket.close();

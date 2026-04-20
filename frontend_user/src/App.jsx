@@ -157,6 +157,12 @@ export default function App() {
     setRows(data);
   }
 
+  async function loadSchedule(date) {
+    const data = await api.getScheduleSettings(date);
+    setScheduleSetting(data);
+    setSelectedSchedule(data.schedule_type || "A");
+  }
+
   useEffect(() => {
     if (!session) {
       return;
@@ -186,6 +192,7 @@ export default function App() {
       setStatus("Loading data...");
       try {
         await loadAttendance(selectedDate, activeCategory);
+        await loadSchedule(selectedDate);
         if (mounted) {
           setStatus("Live");
         }
@@ -241,9 +248,15 @@ export default function App() {
     const socket = connectRealtime((payload) => {
       if (payload.type === "attendance.updated") {
         loadAttendance(selectedDate, activeCategory).catch(() => {});
+        loadSchedule(selectedDate).catch(() => {});
       } else if (payload.type === "employee.created" || payload.type === "employee.updated" || payload.type === "employee.deleted") {
         api.clearEmployeeCache();
         loadEmployees(activeCategory, { forceRefresh: true }).catch(() => {});
+      } else if (payload.type === "backup.restored") {
+        api.clearEmployeeCache();
+        loadEmployees(activeCategory, { forceRefresh: true }).catch(() => {});
+        loadAttendance(selectedDate, activeCategory).catch(() => {});
+        loadSchedule(selectedDate).catch(() => {});
       }
     }, session.access_token);
 

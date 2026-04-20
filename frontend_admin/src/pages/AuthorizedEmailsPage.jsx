@@ -27,6 +27,15 @@ export default function AuthorizedEmailsPage() {
     loadEmails();
   }, []);
 
+  useEffect(() => {
+    function handleAuthEmailsInvalidate() {
+      loadEmails();
+    }
+
+    window.addEventListener("auth-emails:invalidate", handleAuthEmailsInvalidate);
+    return () => window.removeEventListener("auth-emails:invalidate", handleAuthEmailsInvalidate);
+  }, []);
+
   async function addEmail() {
     const normalizedEmail = normalizeEmail(newEmail);
 

@@ -1,5 +1,5 @@
 import { createPortal } from "react-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 
 const MANILA_TIME_ZONE = "Asia/Manila";
@@ -31,39 +31,53 @@ export default function ScheduleOverridePanel({
   const [lateThreshold, setLateThreshold] = useState("08:00");
   const [status, setStatus] = useState("Ready");
   const [hasOverride, setHasOverride] = useState(false);
+  const requestIdRef = useRef(0);
 
   useEffect(() => {
     setDate(initialDate || getManilaDate());
   }, [initialDate]);
 
-  useEffect(() => {
-    let mounted = true;
+  async function loadSchedule(activeDate) {
+    const requestId = ++requestIdRef.current;
+    setStatus("Loading schedule...");
 
-    async function loadSchedule(activeDate) {
-      setStatus("Loading schedule...");
-
-      try {
-        const data = await api.getScheduleSettings(activeDate);
-        if (!mounted) {
-          return;
-        }
-
-        setScheduleType(data.schedule_type || "A");
-        setLateThreshold(data.late_threshold || "08:00");
-        setHasOverride(Boolean(data.has_override));
-        setStatus(data.has_override ? "Override loaded" : "Using default schedule");
-      } catch (error) {
-        if (mounted) {
-          setStatus(error.message);
-        }
+    try {
+      const data = await api.getScheduleSettings(activeDate);
+      if (requestId !== requestIdRef.current) {
+        return;
       }
-    }
 
+      setScheduleType(data.schedule_type || "A");
+      setLateThreshold(data.late_threshold || "08:00");
+      setHasOverride(Boolean(data.has_override));
+      setStatus(data.has_override ? "Override loaded" : "Using default schedule");
+    } catch (error) {
+      if (requestId !== requestIdRef.current) {
+        return;
+      }
+
+      setStatus(error.message);
+    }
+  }
+
+  useEffect(() => {
     loadSchedule(date);
 
     return () => {
-      mounted = false;
+      requestIdRef.current += 1;
     };
+  }, [date]);
+
+  useEffect(() => {
+    function handleScheduleInvalidate(event) {
+      const payloadDate = event?.detail?.payload?.date || event?.detail?.date || "";
+      if (!payloadDate || payloadDate === date) {
+        loadSchedule(date);
+      }
+    }
+
+    window.addEventListener("schedule-settings:invalidate", handleScheduleInvalidate);
+    return () => window.removeEventListener("schedule-settings:invalidate", handleScheduleInvalidate);
   }, [date]);
 
   useEffect(() => {

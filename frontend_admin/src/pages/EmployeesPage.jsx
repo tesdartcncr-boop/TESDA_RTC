@@ -147,6 +147,15 @@ export default function EmployeesPage() {
     loadEmployees();
   }, [category]);
 
+  useEffect(() => {
+    function handleEmployeesInvalidate() {
+      loadEmployees();
+    }
+
+    window.addEventListener("employees:invalidate", handleEmployeesInvalidate);
+    return () => window.removeEventListener("employees:invalidate", handleEmployeesInvalidate);
+  }, [category]);
+
   function updateDraftName(employeeId, field, value) {
     setDraftNames((prev) => ({
       ...prev,
