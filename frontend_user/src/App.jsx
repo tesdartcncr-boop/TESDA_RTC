@@ -64,10 +64,14 @@ export default function App() {
   const [selectedSchedule, setSelectedSchedule] = useState("A");
   const [scheduleSetting, setScheduleSetting] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState("");
+  const [employeeSearchDraft, setEmployeeSearchDraft] = useState("");
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("Ready");
   const manilaDateRef = useRef(getManilaDate());
+  const activeCategoryRef = useRef(activeCategory);
+  const selectedDateRef = useRef(selectedDate);
+  const loadRequestRef = useRef(0);
 
   useEffect(() => {
     const syncManilaDate = () => {
@@ -93,6 +97,14 @@ export default function App() {
     timeoutId = window.setTimeout(scheduleNextSync, getMillisecondsUntilNextManilaMidnight());
     return () => window.clearTimeout(timeoutId);
   }, []);
+
+  useEffect(() => {
+    activeCategoryRef.current = activeCategory;
+  }, [activeCategory]);
+
+  useEffect(() => {
+    selectedDateRef.current = selectedDate;
+  }, [selectedDate]);
 
   useEffect(() => {
     let mounted = true;
@@ -149,82 +161,55 @@ export default function App() {
     setSelectedSchedule(data.schedule_type || "A");
   }
 
-  useEffect(() => {
-    if (!session) {
-      return;
-    }
+  function handleSearchSubmit(event) {
+    event.preventDefault();
+    setEmployeeSearch(employeeSearchDraft.trim());
+  }
 
-    let mounted = true;
-
-    loadEmployees(activeCategory).catch((error) => {
-      if (mounted) {
-        setStatus(error.message);
-      }
-    });
-
-    return () => {
-      mounted = false;
-    };
-  }, [activeCategory, session]);
+  function handleClearSearch() {
+    setEmployeeSearchDraft("");
+    setEmployeeSearch("");
+  }
 
   useEffect(() => {
     if (!session) {
       return;
     }
 
-    let mounted = true;
+    let cancelled = false;
+    const requestId = ++loadRequestRef.current;
 
-    async function refreshAttendanceData() {
+    async function refreshDashboardData() {
       setStatus("Loading data...");
       try {
-        await loadAttendance(selectedDate, activeCategory);
-        await loadSchedule(selectedDate);
-        if (mounted) {
-          setStatus("Live");
+        const [employeeData, attendanceData, scheduleData] = await Promise.all([
+          api.getEmployees(activeCategory),
+          api.getDailyAttendance(selectedDate, activeCategory),
+          api.getScheduleSettings(selectedDate)
+        ]);
+
+        if (cancelled || loadRequestRef.current !== requestId) {
+          return;
         }
+
+        setEmployees(employeeData);
+        setRows(attendanceData);
+        setScheduleSetting(scheduleData);
+        setSelectedSchedule(scheduleData.schedule_type || "A");
+        setStatus("Live");
       } catch (error) {
-        if (mounted) {
+        if (!cancelled && loadRequestRef.current === requestId) {
           setStatus(error.message);
         }
       }
     }
 
-    refreshAttendanceData();
+    refreshDashboardData();
 
     return () => {
-      mounted = false;
+      cancelled = true;
     };
   }, [activeCategory, selectedDate, session]);
-
-  useEffect(() => {
-    if (!session) {
-      return;
-    }
-
-    let mounted = true;
-
-    async function loadSchedule(date) {
-      try {
-        const data = await api.getScheduleSettings(date);
-        if (!mounted) {
-          return;
-        }
-
-        setScheduleSetting(data);
-        setSelectedSchedule(data.schedule_type || "A");
-      } catch {
-        if (mounted) {
-          setScheduleSetting(null);
-        }
-      }
-    }
-
-    loadSchedule(selectedDate);
-
-    return () => {
-      mounted = false;
-    };
-  }, [selectedDate, session]);
 
   useEffect(() => {
     if (!session?.access_token) {
@@ -232,24 +217,27 @@ export default function App() {
     }
 
     const socket = connectRealtime((payload) => {
+      const currentCategory = activeCategoryRef.current;
+      const currentDate = selectedDateRef.current;
+
       if (payload.type === "attendance.updated") {
-        loadAttendance(selectedDate, activeCategory).catch(() => {});
-        loadSchedule(selectedDate).catch(() => {});
+        loadAttendance(currentDate, currentCategory).catch(() => {});
+        loadSchedule(currentDate).catch(() => {});
       } else if (payload.type === "employee.created" || payload.type === "employee.updated" || payload.type === "employee.deleted") {
         api.clearEmployeeCache();
-        loadEmployees(activeCategory, { forceRefresh: true }).catch(() => {});
+        loadEmployees(currentCategory, { forceRefresh: true }).catch(() => {});
       } else if (payload.type === "backup.restored") {
         api.clearEmployeeCache();
-        loadEmployees(activeCategory, { forceRefresh: true }).catch(() => {});
-        loadAttendance(selectedDate, activeCategory).catch(() => {});
-        loadSchedule(selectedDate).catch(() => {});
+        loadEmployees(currentCategory, { forceRefresh: true }).catch(() => {});
+        loadAttendance(currentDate, currentCategory).catch(() => {});
+        loadSchedule(currentDate).catch(() => {});
       }
     }, session.access_token);
 
     return () => {
       socket.close();
     };
-  }, [selectedDate, activeCategory, session?.access_token]);
+  }, [session?.access_token]);
 
   async function handleClock(employeeId, employeePassword, leaveType) {
     setStatus("Saving time record...");
@@ -346,46 +334,34 @@ export default function App() {
         <div className="roster-toolbar">
           <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
 
-          <label className="roster-search">
-            <span>Find employee</span>
-            <input
-              type="search"
-              placeholder="Type a name to filter the roster"
-              value={employeeSearch}
-              onChange={(event) => setEmployeeSearch(event.target.value)}
-            />
-          </label>
+          <form className="roster-search-form" onSubmit={handleSearchSubmit}>
+            <label className="roster-search">
+              <span>Find employee</span>
+              <input
+                type="search"
+                placeholder="Type a name to filter the roster"
+                value={employeeSearchDraft}
+                onChange={(event) => setEmployeeSearchDraft(event.target.value)}
+              />
+            </label>
 
-          <button
-            type="button"
-            className="secondary-btn roster-clear"
-            onClick={() => setEmployeeSearch("")}
-            disabled={!employeeSearch.trim()}
-          >
-            Clear
-          </button>
+            <button type="submit" className="secondary-btn roster-search-submit">
+              Search
+            </button>
+
+            <button
+              type="button"
+              className="secondary-btn roster-clear"
+              onClick={handleClearSearch}
+              disabled={!employeeSearchDraft.trim() && !employeeSearch.trim()}
+            >
+              Clear
+            </button>
+          </form>
         </div>
       </section>
 
       <section className="surface user-workspace">
-        <div className="status-strip user-status-strip">
-          <div className="status-card">
-            <span>Category</span>
-            <strong>{activeCategoryTitle}</strong>
-            <p>{activeCategorySummary}</p>
-          </div>
-          <div className="status-card">
-            <span>Employees</span>
-            <strong>{filteredEmployees.length}</strong>
-            <p>{employees.length} loaded</p>
-          </div>
-          <div className="status-card">
-            <span>Status</span>
-            <strong>{status}</strong>
-            <p>{selectedScheduleLabel}</p>
-          </div>
-        </div>
-
         <EmployeeGrid
           key={activeCategory}
           employees={filteredEmployees}
@@ -407,6 +383,26 @@ export default function App() {
             </select>
           </label>
           {scheduleLocked ? <p className="hint">This date is locked to the admin schedule override.</p> : <p className="hint">Choose the schedule used for this clock action.</p>}
+        </div>
+
+        <div className="user-summary-footer">
+          <div className="status-strip user-status-strip">
+            <div className="status-card">
+              <span>Category</span>
+              <strong>{activeCategoryTitle}</strong>
+              <p>{activeCategorySummary}</p>
+            </div>
+            <div className="status-card">
+              <span>Employees</span>
+              <strong>{filteredEmployees.length}</strong>
+              <p>{employees.length} loaded</p>
+            </div>
+            <div className="status-card">
+              <span>Status</span>
+              <strong>{status}</strong>
+              <p>{selectedScheduleLabel}</p>
+            </div>
+          </div>
         </div>
       </section>
     </main>

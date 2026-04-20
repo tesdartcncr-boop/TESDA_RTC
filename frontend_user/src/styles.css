@@ -766,6 +766,13 @@ p {
   backdrop-filter: blur(14px);
 }
 
+.roster-search-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.55rem;
+  align-items: end;
+}
+
 .roster-search {
   display: grid;
   gap: 0.28rem;
@@ -780,12 +787,15 @@ p {
 }
 
 .roster-search input {
-  min-height: 4.3rem;
+  min-height: 3rem;
 }
 
+.roster-search-submit,
 .roster-clear {
   align-self: end;
-  min-height: 4.3rem;
+  min-height: 3rem;
+  padding-inline: 0.95rem;
+  white-space: nowrap;
 }
 
 .roster-count {
@@ -1247,8 +1257,12 @@ td input {
     grid-template-columns: minmax(0, 1fr);
   }
 
+  .roster-search-form {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
   .roster-clear {
-    min-height: 3.6rem;
+    min-height: 2.9rem;
   }
 
   .employee-roster-panel {
@@ -1510,7 +1524,14 @@ p {
 }
 
 .user-status-strip {
-  margin-top: -0.1rem;
+  margin-top: 0;
+}
+
+.user-summary-footer {
+  display: grid;
+  gap: 0.65rem;
+  padding-top: 0.9rem;
+  border-top: 1px solid rgba(28, 23, 19, 0.08);
 }
 
 .status-strip {
@@ -2266,8 +2287,12 @@ td input {
     grid-template-columns: 1fr;
   }
 
+  .roster-search-form {
+    grid-template-columns: 1fr;
+  }
+
   .roster-clear {
-    min-height: 3.4rem;
+    min-height: 2.8rem;
   }
 
   .primary-btn {
