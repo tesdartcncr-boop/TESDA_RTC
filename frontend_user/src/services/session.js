@@ -1,4 +1,5 @@
 const PORTAL_SESSION_KEY = "dtr_portal_session";
+let activePortalSession = null;
 
 function isBrowser() {
   return typeof window !== "undefined" && typeof window.localStorage !== "undefined";
@@ -26,36 +27,44 @@ function normalizeSession(session) {
 
 export function getPortalSession() {
   if (!isBrowser()) {
-    return null;
+    return activePortalSession;
+  }
+
+  if (activePortalSession) {
+    return activePortalSession;
   }
 
   try {
     const raw = window.localStorage.getItem(PORTAL_SESSION_KEY);
     if (!raw) {
-      return null;
+      return activePortalSession;
     }
 
     const session = normalizeSession(JSON.parse(raw));
     if (!session) {
       window.localStorage.removeItem(PORTAL_SESSION_KEY);
-      return null;
+      return activePortalSession;
     }
+
+    activePortalSession = session;
 
     return session;
   } catch {
     window.localStorage.removeItem(PORTAL_SESSION_KEY);
-    return null;
+    return activePortalSession;
   }
 }
 
 export function setPortalSession(session) {
-  if (!isBrowser()) {
+  const normalized = normalizeSession(session);
+  if (!normalized) {
+    clearPortalSession();
     return;
   }
 
-  const normalized = normalizeSession(session);
-  if (!normalized) {
-    window.localStorage.removeItem(PORTAL_SESSION_KEY);
+  activePortalSession = normalized;
+
+  if (!isBrowser()) {
     return;
   }
 
@@ -63,6 +72,8 @@ export function setPortalSession(session) {
 }
 
 export function clearPortalSession() {
+  activePortalSession = null;
+
   if (!isBrowser()) {
     return;
   }

@@ -102,6 +102,25 @@ def _normalize_sheet_token(value: str | None) -> str | None:
   return normalized
 
 
+def _extract_leave_code(row: dict | None) -> str | None:
+  if not row:
+    return None
+
+  for key in ("leave_type", "time_in", "time_out"):
+    value = row.get(key)
+    if is_leave_code(value):
+      return str(value).strip().upper()
+
+  return None
+
+
+def _is_open_leave_record(row: dict | None) -> bool:
+  if not row:
+    return False
+
+  return bool(_extract_leave_code(row)) and not (row.get("time_out") or "").strip()
+
+
 def _display_sheet_value(row: dict, field: str) -> str:
   leave_type = (row.get("leave_type") or "").strip().upper() or None
   value = row.get(field)
@@ -417,22 +436,32 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     .execute()
   )
   existing = existing_response.data[0] if existing_response.data else None
+  existing_leave_code = _extract_leave_code(existing)
+  requested_leave_type = leave_type or existing_leave_code
 
   try:
     schedule_type, late_threshold = resolve_schedule_context(target_date, payload.schedule_type or "A")
 
-    if leave_type:
+    if requested_leave_type:
       values = {
         "employee_id": payload.employee_id,
         "date": target_date,
-        "time_in": None,
-        "time_out": None,
         "late_minutes": 0,
         "undertime_minutes": 0,
         "overtime_minutes": 0,
-        "leave_type": leave_type,
+        "leave_type": requested_leave_type,
         "schedule_type": schedule_type
       }
+
+      if existing and existing.get("time_in") and existing.get("time_out"):
+        raise HTTPException(status_code=400, detail="Time In and Time Out already recorded for this date.")
+
+      if _is_open_leave_record(existing):
+        values["time_in"] = requested_leave_type
+        values["time_out"] = requested_leave_type
+      else:
+        values["time_in"] = requested_leave_type
+        values["time_out"] = None
 
       if existing:
         result = supabase.table("attendance").update(values).eq("id", existing["id"]).execute()
@@ -440,9 +469,10 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         result = supabase.table("attendance").insert(values).execute()
 
       row = result.data[0]
+      action = "Time Out" if _is_open_leave_record(existing) else "Time In"
       await publish_event(
         "attendance.updated",
-        f"{employee['name']} tagged with leave {leave_type} for {target_date}",
+        f"{employee['name']} recorded {requested_leave_type} leave on {target_date}",
         row
       )
       invalidate_cache_revision()

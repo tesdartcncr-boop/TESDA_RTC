@@ -179,12 +179,12 @@ async function getAccessToken() {
 async function request(path, options = {}) {
   const accessToken = await getAccessToken();
   const response = await fetch(`${API_BASE_URL}${path}`, {
+    ...options,
     headers: {
       "Content-Type": "application/json",
+      ...(options.headers || {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      ...(options.headers || {})
     },
-    ...options
   });
 
   if (!response.ok) {

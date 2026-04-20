@@ -4,8 +4,14 @@ export default function AttendanceTable({ rows, onCellUpdate }) {
   }
 
   function formatTime(value) {
-    if (!value || isLeaveCode(value)) {
+    const normalizedValue = (value || "").trim().toUpperCase();
+
+    if (!normalizedValue) {
       return "-";
+    }
+
+    if (isLeaveCode(normalizedValue)) {
+      return normalizedValue;
     }
 
     return value;

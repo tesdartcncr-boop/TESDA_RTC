@@ -1,33 +1,51 @@
 import { createPortal } from "react-dom";
 import { useEffect, useMemo, useState } from "react";
 
+const LEAVE_CODES = new Set(["SL", "VL", "OB"]);
+
+function normalizeToken(value) {
+  return (value || "").trim().toUpperCase();
+}
+
+function isLeaveCode(value) {
+  return LEAVE_CODES.has(normalizeToken(value));
+}
+
+function getAttendanceLeaveCode(attendance) {
+  return normalizeToken(attendance?.leave_type) || (isLeaveCode(attendance?.time_in) ? normalizeToken(attendance.time_in) : "") || (isLeaveCode(attendance?.time_out) ? normalizeToken(attendance.time_out) : "");
+}
+
 function getClockCopy(attendance, leaveType) {
-  const hasTimeIn = attendance?.time_in && !["SL", "VL", "OB"].includes(String(attendance.time_in).trim().toUpperCase());
-  const hasTimeOut = attendance?.time_out && !["SL", "VL", "OB"].includes(String(attendance.time_out).trim().toUpperCase());
+  const recordedLeaveCode = getAttendanceLeaveCode(attendance);
+  const normalizedLeaveType = normalizeToken(leaveType);
+  const hasTimeIn = Boolean(attendance?.time_in);
+  const hasTimeOut = Boolean(attendance?.time_out);
 
   if (hasTimeIn && hasTimeOut) {
     return {
       isComplete: true,
       title: "Completed today",
-      description: "This employee already has a full Time In / Time Out entry for the selected date."
+      description: recordedLeaveCode
+        ? `This ${recordedLeaveCode} leave already has Time In / Time Out recorded.`
+        : "This employee already has a full Time In / Time Out entry for the selected date."
     };
   }
 
-  const normalizedLeaveType = (leaveType || "").trim().toUpperCase();
+  if (hasTimeIn && !hasTimeOut) {
+    return {
+      isComplete: false,
+      title: "Record Time Out",
+      description: recordedLeaveCode
+        ? `This ${recordedLeaveCode} leave already has Time In recorded. Enter the password to save Time Out.`
+        : "Time In already exists for today. Enter the password to save Time Out."
+    };
+  }
 
   if (normalizedLeaveType) {
     return {
       isComplete: false,
       title: "Apply Leave",
-      description: `This will record ${normalizedLeaveType} for the selected date and keep Time In / Time Out blank.`
-    };
-  }
-
-  if (attendance?.time_in) {
-    return {
-      isComplete: false,
-      title: "Record Time Out",
-      description: "Time In already exists for today. Enter the password to save Time Out."
+      description: `This will record ${normalizedLeaveType} in Time In. Use it again to save ${normalizedLeaveType} in Time Out.`
     };
   }
 
@@ -39,9 +57,9 @@ function getClockCopy(attendance, leaveType) {
 }
 
 function getRosterCardCopy(attendance) {
-  const leaveType = (attendance?.leave_type || "").trim().toUpperCase();
-  const hasTimeIn = attendance?.time_in && !["SL", "VL", "OB"].includes(String(attendance.time_in).trim().toUpperCase());
-  const hasTimeOut = attendance?.time_out && !["SL", "VL", "OB"].includes(String(attendance.time_out).trim().toUpperCase());
+  const leaveType = getAttendanceLeaveCode(attendance);
+  const hasTimeIn = Boolean(attendance?.time_in);
+  const hasTimeOut = Boolean(attendance?.time_out);
 
   function formatRosterTime(field) {
     if (!attendance) {
@@ -49,19 +67,20 @@ function getRosterCardCopy(attendance) {
     }
 
     const value = attendance[field] || "";
+    const normalizedValue = normalizeToken(value);
 
     if (field === "time_in") {
       if (leaveType) {
         return leaveType;
       }
 
-      if (value && ["SL", "VL", "OB"].includes(String(value).trim().toUpperCase())) {
-        return String(value).trim().toUpperCase();
+      if (normalizedValue && isLeaveCode(normalizedValue)) {
+        return normalizedValue;
       }
     }
 
-    if (field === "time_out" && value && ["SL", "VL", "OB"].includes(String(value).trim().toUpperCase())) {
-      return String(value).trim().toUpperCase();
+    if (field === "time_out" && normalizedValue && isLeaveCode(normalizedValue)) {
+      return normalizedValue;
     }
 
     return value || "—";
@@ -69,9 +88,9 @@ function getRosterCardCopy(attendance) {
 
   if (hasTimeIn && hasTimeOut) {
     return {
-      badge: "Complete",
-      note: "Time In and Time Out already recorded",
-      tone: "is-complete",
+      badge: leaveType || "Complete",
+      note: leaveType ? `${leaveType} leave already completed` : "Time In and Time Out already recorded",
+      tone: leaveType ? "is-leave" : "is-complete",
       timeIn: formatRosterTime("time_in"),
       timeOut: formatRosterTime("time_out")
     };
@@ -156,8 +175,8 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
 
   function openModal(employee) {
     const attendance = attendanceByEmployeeId.get(employee.id);
-    const hasTimeIn = attendance?.time_in && !["SL", "VL", "OB"].includes(String(attendance.time_in).trim().toUpperCase());
-    const hasTimeOut = attendance?.time_out && !["SL", "VL", "OB"].includes(String(attendance.time_out).trim().toUpperCase());
+    const hasTimeIn = Boolean(attendance?.time_in);
+    const hasTimeOut = Boolean(attendance?.time_out);
 
     if (hasTimeIn && hasTimeOut) {
       return;
@@ -165,7 +184,7 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
 
     setActiveEmployeeId(employee.id);
     setPassword("");
-    setLeaveType("");
+    setLeaveType(getAttendanceLeaveCode(attendance));
     setErrorMessage("");
     setIsSubmitting(false);
   }
@@ -209,12 +228,7 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
         {employees.map((employee, index) => {
           const attendance = attendanceByEmployeeId.get(employee.id);
           const cardCopy = getRosterCardCopy(attendance);
-          const isCompleted = Boolean(
-            attendance?.time_in &&
-            attendance?.time_out &&
-            !["SL", "VL", "OB"].includes(String(attendance.time_in).trim().toUpperCase()) &&
-            !["SL", "VL", "OB"].includes(String(attendance.time_out).trim().toUpperCase())
-          );
+          const isCompleted = Boolean(attendance?.time_in && attendance?.time_out);
 
           return (
             <button
