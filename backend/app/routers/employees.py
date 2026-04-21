@@ -4,6 +4,7 @@ from ..schemas import EmployeeCreate, EmployeeUpdate
 from ..services.cache_revision import invalidate_cache_revision
 from ..services.passwords import hash_employee_password
 from ..services.realtime import publish_event
+from ..services.response_cache import get_cached_value, invalidate_cached_values, set_cached_value
 from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -34,6 +35,11 @@ def _delete_employee_data(supabase, employee_id: int) -> None:
 
 @router.get("")
 def list_employees(category: str = "regular") -> list[dict]:
+  cache_key = f"employees:list:{category}"
+  cached_rows = get_cached_value(cache_key)
+  if cached_rows is not None:
+    return cached_rows
+
   supabase = get_supabase_client()
   query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category,created_at").order("name")
 
@@ -41,7 +47,9 @@ def list_employees(category: str = "regular") -> list[dict]:
     query = query.eq("category", category)
 
   response = query.execute()
-  return response.data or []
+  rows = response.data or []
+  set_cached_value(cache_key, rows)
+  return rows
 
 
 @router.post("")
@@ -63,6 +71,7 @@ async def create_employee(payload: EmployeeCreate) -> dict:
 
   created = {key: value for key, value in response.data[0].items() if key != "employee_password_hash"}
   invalidate_cache_revision()
+  invalidate_cached_values()
   await publish_event("employee.created", f"Employee added: {created['name']}", created)
   return created
 
@@ -84,6 +93,7 @@ async def update_employee(employee_id: int, payload: EmployeeUpdate) -> dict:
 
   updated = {key: value for key, value in response.data[0].items() if key != "employee_password_hash"}
   invalidate_cache_revision()
+  invalidate_cached_values()
   await publish_event("employee.updated", f"Employee updated: {updated['name']}", updated)
   return updated
 
@@ -103,5 +113,6 @@ async def delete_employee(employee_id: int) -> dict:
     raise HTTPException(status_code=500, detail="Failed to delete all employee data.")
 
   invalidate_cache_revision()
+  invalidate_cached_values()
   await publish_event("employee.deleted", f"Employee deleted: {existing.data[0]['name']}", {"id": employee_id})
   return {"deleted": employee_id}

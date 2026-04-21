@@ -1,4 +1,4 @@
-export default function EmployeeTabs({ activeCategory, onChange }) {
+export default function EmployeeTabs({ activeCategory, onChange, disabled = false }) {
   return (
     <div className="tab-row" role="tablist" aria-label="Employee categories">
       <button
@@ -7,6 +7,7 @@ export default function EmployeeTabs({ activeCategory, onChange }) {
         aria-selected={activeCategory === "regular"}
         className={activeCategory === "regular" ? "tab active" : "tab"}
         onClick={() => onChange("regular")}
+        disabled={disabled}
       >
         <span className="tab-label">Regular</span>
         <span className="tab-note">Permanent roster</span>
@@ -17,6 +18,7 @@ export default function EmployeeTabs({ activeCategory, onChange }) {
         aria-selected={activeCategory === "jo"}
         className={activeCategory === "jo" ? "tab active" : "tab"}
         onClick={() => onChange("jo")}
+        disabled={disabled}
       >
         <span className="tab-label">Job Order</span>
         <span className="tab-note">Job Order roster</span>

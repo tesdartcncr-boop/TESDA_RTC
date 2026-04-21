@@ -7,6 +7,7 @@ from openpyxl import Workbook
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
+from .response_cache import get_cached_value, set_cached_value
 from ..supabase_client import get_supabase_client
 from .time_utils import is_leave_code, to_minutes
 
@@ -59,6 +60,11 @@ def get_month_range(month: str) -> tuple[str, str]:
 
 
 def get_enriched_attendance(month: str | None = None) -> list[dict]:
+  cache_key = f"reports:enriched-attendance:{(month or 'all').strip() or 'all'}"
+  cached_rows = get_cached_value(cache_key)
+  if cached_rows is not None:
+    return cached_rows
+
   supabase = get_supabase_client()
   attendance_query = supabase.table("attendance").select("*")
 
@@ -80,7 +86,9 @@ def get_enriched_attendance(month: str | None = None) -> list[dict]:
     }
     enriched.append(merged)
 
-  return sorted(enriched, key=lambda item: (item.get("date", ""), item.get("employee_name", "")), reverse=True)
+  rows = sorted(enriched, key=lambda item: (item.get("date", ""), item.get("employee_name", "")), reverse=True)
+  set_cached_value(cache_key, rows, ttl_seconds=300.0)
+  return rows
 
 
 def build_monthly_summary(rows: list[dict]) -> list[dict]:

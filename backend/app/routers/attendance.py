@@ -10,6 +10,7 @@ from ..services.report_service import export_master_sheet_xlsx
 from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
 from ..services.time_utils import calculate_dtr_metrics, is_leave_code, now_app_date, now_military_time, normalize_time_token
+from ..services.response_cache import get_cached_value, invalidate_cached_values, set_cached_value
 from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/attendance", tags=["attendance"])
@@ -216,6 +217,22 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
   }
 
 
+def _master_sheet_cache_key(date_from: str, date_to: str, category: str) -> str:
+  normalized_category = (category or "all").strip().lower() or "all"
+  return f"attendance:master-sheet:{normalized_category}:{date_from}:{date_to}"
+
+
+def _get_cached_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
+  cache_key = _master_sheet_cache_key(date_from, date_to, category)
+  cached_sheet = get_cached_value(cache_key)
+  if cached_sheet is not None:
+    return cached_sheet
+
+  sheet_data = _build_master_sheet_context(date_from, date_to, category)
+  set_cached_value(cache_key, sheet_data, ttl_seconds=300.0)
+  return sheet_data
+
+
 def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: dict | None = None) -> dict:
   fallback_schedule_type = payload.schedule_type or (current or {}).get("schedule_type") or "A"
   employee = _get_employee(payload.employee_id)
@@ -272,6 +289,11 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
 
 @router.get("/daily")
 def get_daily_attendance(date: str, category: str = "regular") -> list[dict]:
+  cache_key = f"attendance:daily:{category}:{date}"
+  cached_rows = get_cached_value(cache_key)
+  if cached_rows is not None:
+    return cached_rows
+
   supabase = get_supabase_client()
   employee_query = supabase.table("employees").select("id,name,category")
   if category in {"regular", "jo"}:
@@ -294,7 +316,9 @@ def get_daily_attendance(date: str, category: str = "regular") -> list[dict]:
     or []
   )
 
-  return _enrich_rows(attendance, employee_map)
+  rows = _enrich_rows(attendance, employee_map)
+  set_cached_value(cache_key, rows)
+  return rows
 
 
 @router.get("/master")
@@ -350,12 +374,12 @@ def get_master_attendance(
 
 @router.get("/master-sheet")
 def get_master_sheet(date_from: str, date_to: str, category: str = "all") -> dict:
-  return _build_master_sheet_context(date_from, date_to, category)
+  return _get_cached_master_sheet_context(date_from, date_to, category)
 
 
 @router.get("/master-sheet/export")
 def export_master_sheet(date_from: str, date_to: str, category: str = "all") -> StreamingResponse:
-  sheet_data = _build_master_sheet_context(date_from, date_to, category)
+  sheet_data = _get_cached_master_sheet_context(date_from, date_to, category)
   content = export_master_sheet_xlsx(sheet_data)
   category_token = (sheet_data.get("category") or category or "all").strip().lower() or "all"
   if sheet_data["date_from"] == sheet_data["date_to"]:
@@ -410,6 +434,7 @@ async def upsert_master_sheet_record(payload: MasterSheetAttendanceUpsert) -> di
     row
   )
   invalidate_cache_revision()
+  invalidate_cached_values()
   return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
 
@@ -479,6 +504,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         row
       )
       invalidate_cache_revision()
+      invalidate_cached_values()
       return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
     now_time = now_military_time()
@@ -550,6 +576,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   )
 
   invalidate_cache_revision()
+  invalidate_cached_values()
 
   return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
@@ -622,4 +649,5 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
     row
   )
   invalidate_cache_revision()
+  invalidate_cached_values()
   return {**row, "employee_name": employee["name"], "category": employee["category"]}

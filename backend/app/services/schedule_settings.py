@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date as Date
 from typing import Any
 
+from .response_cache import get_cached_value, invalidate_cached_values, set_cached_value
 from .time_utils import calculate_dtr_metrics, get_schedule_details, is_leave_code, normalize_time_token, to_minutes
 from ..supabase_client import get_supabase_client
 
@@ -35,6 +36,40 @@ REGULAR_PRESETS = {
     "schedule_end": "19:00"
   }
 }
+_CACHE_TTL_SECONDS = 30.0
+_OPTIONAL_CACHE_MARKER = "__dtr_optional_cache__"
+
+
+def _schedule_cache_key(*parts: str) -> str:
+  return "schedule-settings:" + ":".join(parts)
+
+
+def _set_schedule_cache(cache_key: str, value: Any, ttl_seconds: float = _CACHE_TTL_SECONDS) -> None:
+  set_cached_value(cache_key, value, ttl_seconds)
+
+
+def _read_optional_schedule_cache(cache_key: str) -> tuple[bool, Any | None]:
+  cached_value = get_cached_value(cache_key)
+  if cached_value is None:
+    return False, None
+
+  if isinstance(cached_value, dict) and cached_value.get(_OPTIONAL_CACHE_MARKER):
+    return True, cached_value.get("value")
+
+  return True, cached_value
+
+
+def _write_optional_schedule_cache(cache_key: str, value: Any, ttl_seconds: float = _CACHE_TTL_SECONDS) -> None:
+  _set_schedule_cache(cache_key, {_OPTIONAL_CACHE_MARKER: True, "value": value}, ttl_seconds)
+
+
+def _invalidate_schedule_cache() -> None:
+  invalidate_cached_values("schedule-settings:")
+
+
+def _fallback_schedule_type_token(value: str | None) -> str:
+  normalized = normalize_schedule_type(value)
+  return normalized or "none"
 
 
 def _format_minutes_as_time(total_minutes: int) -> str:
@@ -232,6 +267,11 @@ def _fetch_legacy_weekly_schedule_for_day(day_of_week: int, category: str | None
 
 def fetch_weekly_schedule_for_day(day_of_week: int, category: str | None = None) -> dict:
   resolved_category = normalize_weekly_category(category)
+  cache_key = _schedule_cache_key("weekly-day", resolved_category, str(day_of_week))
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
+
   supabase = get_supabase_client()
 
   try:
@@ -244,15 +284,26 @@ def fetch_weekly_schedule_for_day(day_of_week: int, category: str | None = None)
       .execute()
     )
     if response.data:
-      return _serialize_weekly_schedule(response.data[0], day_of_week, resolved_category)
+      result = _serialize_weekly_schedule(response.data[0], day_of_week, resolved_category)
+      _set_schedule_cache(cache_key, result)
+      return result
   except Exception:
-    return _fetch_legacy_weekly_schedule_for_day(day_of_week, resolved_category)
+    result = _fetch_legacy_weekly_schedule_for_day(day_of_week, resolved_category)
+    _set_schedule_cache(cache_key, result)
+    return result
 
-  return _default_weekly_schedule(day_of_week, resolved_category)
+  result = _default_weekly_schedule(day_of_week, resolved_category)
+  _set_schedule_cache(cache_key, result)
+  return result
 
 
 def list_weekly_schedule_settings(category: str | None = None) -> list[dict]:
   resolved_category = normalize_weekly_category(category)
+  cache_key = _schedule_cache_key("weekly-list", resolved_category)
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
+
   supabase = get_supabase_client()
   try:
     response = (
@@ -283,7 +334,9 @@ def list_weekly_schedule_settings(category: str | None = None) -> list[dict]:
 
       rows_by_day[day_of_week] = row
 
-    return [_serialize_weekly_schedule(rows_by_day.get(day_of_week), day_of_week, resolved_category) for day_of_week in range(7)]
+    result = [_serialize_weekly_schedule(rows_by_day.get(day_of_week), day_of_week, resolved_category) for day_of_week in range(7)]
+    _set_schedule_cache(cache_key, result)
+    return result
 
   rows_by_day: dict[int, dict] = {}
   for row in response.data or []:
@@ -294,7 +347,9 @@ def list_weekly_schedule_settings(category: str | None = None) -> list[dict]:
 
     rows_by_day[day_of_week] = row
 
-  return [_serialize_weekly_schedule(rows_by_day.get(day_of_week), day_of_week, resolved_category) for day_of_week in range(7)]
+  result = [_serialize_weekly_schedule(rows_by_day.get(day_of_week), day_of_week, resolved_category) for day_of_week in range(7)]
+  _set_schedule_cache(cache_key, result)
+  return result
 
 
 def upsert_weekly_schedule_settings(category: str, schedule_rows: list[dict]) -> list[dict]:
@@ -346,6 +401,7 @@ def upsert_weekly_schedule_settings(category: str, schedule_rows: list[dict]) ->
   if not response.data:
     raise ValueError("Failed to save weekly schedule settings.")
 
+  _invalidate_schedule_cache()
   return list_weekly_schedule_settings(resolved_category)
 
 
@@ -398,6 +454,11 @@ def get_default_late_threshold(schedule_type: str | None = None) -> str:
 
 
 def fetch_schedule_override(date_value: str) -> dict | None:
+  cache_key = _schedule_cache_key("override", date_value)
+  cached_found, cached_value = _read_optional_schedule_cache(cache_key)
+  if cached_found:
+    return cached_value
+
   supabase = get_supabase_client()
   try:
     response = (
@@ -411,9 +472,12 @@ def fetch_schedule_override(date_value: str) -> dict | None:
     return None
 
   if not response.data:
+    _write_optional_schedule_cache(cache_key, None)
     return None
 
-  return response.data[0]
+  result = response.data[0]
+  _write_optional_schedule_cache(cache_key, result)
+  return result
 
 
 def list_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
@@ -421,6 +485,11 @@ def list_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
   end_date = Date.fromisoformat(date_to)
   if start_date > end_date:
     raise ValueError("From date must be earlier than or equal to to date.")
+
+  cache_key = _schedule_cache_key("overrides", start_date.isoformat(), end_date.isoformat())
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
 
   supabase = get_supabase_client()
   try:
@@ -435,15 +504,25 @@ def list_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
   except Exception:
     return []
 
-  return response.data or []
+  result = response.data or []
+  _set_schedule_cache(cache_key, result)
+  return result
 
 
 def resolve_schedule_context(date_value: str, category: str | None = None, fallback_schedule_type: str | None = None) -> dict:
-  date_value_obj = Date.fromisoformat(date_value)
   resolved_category = normalize_weekly_category(category)
+  fallback_token = _fallback_schedule_type_token(fallback_schedule_type)
+  cache_key = _schedule_cache_key("context", date_value, resolved_category, fallback_token)
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
+
+  date_value_obj = Date.fromisoformat(date_value)
   weekly_schedule = fetch_weekly_schedule_for_day(date_value_obj.weekday(), resolved_category)
   override = fetch_schedule_override(date_value)
-  return _compose_schedule_context(date_value, resolved_category, fallback_schedule_type, weekly_schedule, override)
+  result = _compose_schedule_context(date_value, resolved_category, fallback_schedule_type, weekly_schedule, override)
+  _set_schedule_cache(cache_key, result)
+  return result
 
 
 def toggle_schedule_override(date_value: str) -> dict:
@@ -456,6 +535,7 @@ def toggle_schedule_override(date_value: str) -> dict:
     if response.data is None:
       raise ValueError("Failed to clear schedule override.")
 
+    _invalidate_schedule_cache()
     updated_rows = recalculate_attendance_for_date(date_value)
     return {
       "date": date_value,
@@ -478,6 +558,7 @@ def toggle_schedule_override(date_value: str) -> dict:
     raise ValueError("Failed to save schedule settings.")
 
   saved = response.data[0]
+  _invalidate_schedule_cache()
   updated_rows = recalculate_attendance_for_date(date_value)
 
   return {
@@ -510,6 +591,7 @@ def upsert_schedule_setting(date_value: str, schedule_type: str | None, late_thr
   if not response.data:
     raise ValueError("Failed to save schedule settings.")
 
+  _invalidate_schedule_cache()
   return response.data[0]
 
 

@@ -46,6 +46,7 @@ Required backend values:
 - SUPABASE_AUTH_ALLOWED_EMAILS (comma-separated approved login emails)
 - SUPABASE_BACKUP_BUCKET (recommended: dtr-backups)
 - ALLOWED_ORIGINS (default already supports localhost ports 5173 and 5174)
+- REDIS_URL (optional; enables shared cache for employee roster, attendance, and master sheet reads)
 - DAILY_BACKUP_CRON (cron expression, default 0 23 * * *)
 
 Required frontend values:

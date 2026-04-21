@@ -283,6 +283,22 @@ export default function App() {
     setScheduleSetting(data);
   }
 
+  function handleCategoryChange(nextCategory) {
+    const normalizedCategory = normalizeActiveCategory(nextCategory);
+
+    if (normalizedCategory === activeCategory) {
+      return;
+    }
+
+    setIsDashboardLoading(true);
+    setIsLoadingPopupVisible(true);
+    setStatus(`Loading ${getCategoryTitle(normalizedCategory)}...`);
+    setEmployees([]);
+    setRows([]);
+    setScheduleSetting(null);
+    setActiveCategory(normalizedCategory);
+  }
+
   function handleSearchSubmit(event) {
     event.preventDefault();
     setEmployeeSearch(employeeSearchDraft.trim());
@@ -358,7 +374,7 @@ export default function App() {
         api.clearEmployeeCache();
         loadEmployees(currentCategory, { forceRefresh: true }).catch(() => {});
         loadAttendance(currentDate, currentCategory).catch(() => {});
-        loadSchedule(currentDate).catch(() => {});
+        loadSchedule(currentDate, currentCategory).catch(() => {});
       }
     }, session.access_token);
 
@@ -508,7 +524,7 @@ export default function App() {
         </header>
 
         <div className="roster-toolbar">
-          <EmployeeTabs activeCategory={activeCategory} onChange={setActiveCategory} />
+          <EmployeeTabs activeCategory={activeCategory} onChange={handleCategoryChange} disabled={isDashboardLoading} />
 
           <form className="roster-search-form" onSubmit={handleSearchSubmit}>
             <label className="roster-search">

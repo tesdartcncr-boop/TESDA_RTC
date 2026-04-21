@@ -14,6 +14,7 @@ from ..services.schedule_settings import (
   upsert_weekly_schedule_settings,
 )
 from ..services.realtime import publish_event
+from ..services.response_cache import get_cached_value, set_cached_value, invalidate_cached_values
 from ..supabase_client import get_supabase_client
 
 router = APIRouter(prefix="/settings", tags=["settings"])
@@ -112,17 +113,38 @@ async def update_authorized_email(email_id: int, payload: AuthorizedEmailStatusU
 
 @router.get("/schedule-threshold")
 def get_schedule_threshold(date: str, category: str = "regular") -> dict:
-  return get_schedule_display_values(date, category)
+  cache_key = f"settings:schedule-threshold:{category}:{date}"
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
+
+  result = get_schedule_display_values(date, category)
+  set_cached_value(cache_key, result)
+  return result
 
 
 @router.get("/weekly-schedules")
 def get_weekly_schedules(category: str = "regular") -> list[dict]:
-  return list_weekly_schedule_settings(category)
+  cache_key = f"settings:weekly-schedules:{category}"
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
+
+  result = list_weekly_schedule_settings(category)
+  set_cached_value(cache_key, result)
+  return result
 
 
 @router.get("/schedule-overrides")
 def get_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
-  return list_schedule_overrides(date_from, date_to)
+  cache_key = f"settings:schedule-overrides:{date_from}:{date_to}"
+  cached_value = get_cached_value(cache_key)
+  if cached_value is not None:
+    return cached_value
+
+  result = list_schedule_overrides(date_from, date_to)
+  set_cached_value(cache_key, result)
+  return result
 
 
 @router.get("/cache-revision")
@@ -149,6 +171,7 @@ async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
   }
 
   invalidate_cache_revision()
+  invalidate_cached_values()
   await publish_event(
     "attendance.updated",
     f"Schedule updated for {payload.date.isoformat()} ({result['schedule_type']}, late {result['late_threshold']}); recalculated {result['updated_count']} attendance rows.",
@@ -166,6 +189,7 @@ async def toggle_schedule_override_route(payload: ScheduleOverrideToggle) -> dic
     raise HTTPException(status_code=400, detail=str(error)) from error
 
   invalidate_cache_revision()
+  invalidate_cached_values()
   await publish_event(
     "attendance.updated",
     f"Schedule override {'enabled' if result.get('enabled') else 'cleared'} for {payload.date.isoformat()}; recalculated {result['updated_count']} attendance rows.",
@@ -190,6 +214,7 @@ async def set_weekly_schedules(payload: WeeklyScheduleUpdate) -> dict:
   }
 
   invalidate_cache_revision()
+  invalidate_cached_values()
   await publish_event(
     "attendance.updated",
     f"Weekly schedule updated; recalculated {result['updated_count']} attendance rows.",

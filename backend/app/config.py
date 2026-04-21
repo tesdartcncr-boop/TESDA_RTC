@@ -8,6 +8,7 @@ class Settings(BaseSettings):
   supabase_backup_bucket: str = "dtr-backups"
   supabase_auth_allowed_emails: str = "tesda.mpltp.tapat@gmail.com,mssabatin@tesda.gov.ph"
   allowed_origins: str = "http://localhost:5173,http://localhost:5174"
+  redis_url: str = ""
   app_timezone: str = "Asia/Manila"
   daily_backup_cron: str = "0 23 * * *"
   # Email configuration (Gmail SMTP)

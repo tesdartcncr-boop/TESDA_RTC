@@ -1111,6 +1111,8 @@ select:hover {
 .employee-card__copy {
   display: grid;
   gap: 0.45rem;
+  width: 100%;
+  min-width: 0;
 }
 
 .employee-card h3 {
@@ -2239,6 +2241,7 @@ td input {
 }
 
 .employee-grid--two-up .employee-card__copy {
+  flex: 1 1 auto;
   gap: 0.35rem;
 }
 
@@ -2260,11 +2263,14 @@ td input {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.4rem;
   margin-top: 0.1rem;
+  width: 100%;
 }
 
 .employee-time-chip {
   display: grid;
   gap: 0.14rem;
+  width: 100%;
+  min-width: 0;
   padding: 0.45rem 0.5rem;
   border-radius: 14px;
   border: 1px solid rgba(28, 23, 19, 0.08);
