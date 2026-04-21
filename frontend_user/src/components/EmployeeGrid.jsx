@@ -134,14 +134,13 @@ function EyeIcon() {
   );
 }
 
-export default function EmployeeGrid({ employees, attendanceByEmployeeId = new Map(), onClock, emptyMessage = "No employees found for this category." }) {
+export default function EmployeeGrid({ employees, attendanceByEmployeeId = new Map(), onClock, isLoading = false, emptyMessage = "No employees found for this category." }) {
   const [activeEmployeeId, setActiveEmployeeId] = useState(null);
   const [password, setPassword] = useState("");
   const [leaveType, setLeaveType] = useState("");
   const [passwordVisible, setPasswordVisible] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const isScrollable = employees.length > 10;
 
   const activeEmployee = useMemo(
     () => employees.find((employee) => employee.id === activeEmployeeId) || null,
@@ -231,15 +230,16 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
   }
 
   if (!employees.length) {
+    if (isLoading) {
+      return <p className="empty-state">Loading employees...</p>;
+    }
+
     return <p className="empty-state">{emptyMessage}</p>;
   }
 
   return (
     <>
-      <div
-        className={isScrollable ? "employee-grid employee-grid--two-up employee-grid--scroll" : "employee-grid employee-grid--two-up"}
-        style={isScrollable ? { maxHeight: "calc((7rem * 6) + (0.85rem * 5))", overflowY: "auto", paddingRight: "0.35rem" } : undefined}
-      >
+      <div className="employee-grid employee-grid--two-up">
         {employees.map((employee, index) => {
           const attendance = attendanceByEmployeeId.get(employee.id);
           const cardCopy = getRosterCardCopy(attendance);

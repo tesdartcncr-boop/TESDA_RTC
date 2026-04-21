@@ -42,6 +42,62 @@ function getCategorySummary(category) {
   return category === "regular" ? "Permanent staff roster" : "Job Order roster";
 }
 
+const USER_UI_STATE_KEY = "dtr_user_ui_state:v1";
+
+function getDefaultUserUiState() {
+  return {
+    activeCategory: "regular",
+    employeeSearch: "",
+    employeeSearchDraft: ""
+  };
+}
+
+function normalizeActiveCategory(value) {
+  return value === "jo" ? "jo" : "regular";
+}
+
+function readUserUiState() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return getDefaultUserUiState();
+  }
+
+  try {
+    const raw = window.localStorage.getItem(USER_UI_STATE_KEY);
+    if (!raw) {
+      return getDefaultUserUiState();
+    }
+
+    const parsed = JSON.parse(raw);
+    return {
+      activeCategory: normalizeActiveCategory(parsed?.activeCategory),
+      employeeSearch: typeof parsed?.employeeSearch === "string" ? parsed.employeeSearch : "",
+      employeeSearchDraft: typeof parsed?.employeeSearchDraft === "string" ? parsed.employeeSearchDraft : ""
+    };
+  } catch {
+    return getDefaultUserUiState();
+  }
+}
+
+function writeUserUiState(nextState) {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.setItem(USER_UI_STATE_KEY, JSON.stringify(nextState));
+  } catch {
+    // Ignore storage write failures.
+  }
+}
+
+function clearUserUiState() {
+  if (typeof window === "undefined" || typeof window.localStorage === "undefined") {
+    return;
+  }
+
+  window.localStorage.removeItem(USER_UI_STATE_KEY);
+}
+
 function formatDisplayDate(dateIso) {
   const [year, month, day] = dateIso.split("-").map(Number);
   const date = new Date(Date.UTC(year, month - 1, day, 12, 0, 0));
@@ -59,15 +115,18 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
-  const [activeCategory, setActiveCategory] = useState("regular");
+  const initialUserUiState = readUserUiState();
+  const [activeCategory, setActiveCategory] = useState(initialUserUiState.activeCategory);
   const [selectedDate, setSelectedDate] = useState(() => getManilaDate());
   const [selectedSchedule, setSelectedSchedule] = useState("A");
   const [scheduleSetting, setScheduleSetting] = useState(null);
-  const [employeeSearch, setEmployeeSearch] = useState("");
-  const [employeeSearchDraft, setEmployeeSearchDraft] = useState("");
+  const [employeeSearch, setEmployeeSearch] = useState(initialUserUiState.employeeSearch);
+  const [employeeSearchDraft, setEmployeeSearchDraft] = useState(initialUserUiState.employeeSearchDraft || initialUserUiState.employeeSearch);
   const [employees, setEmployees] = useState([]);
   const [rows, setRows] = useState([]);
   const [status, setStatus] = useState("Ready");
+  const [isDashboardLoading, setIsDashboardLoading] = useState(true);
+  const [isLoadingPopupVisible, setIsLoadingPopupVisible] = useState(false);
   const [serverIssue, setServerIssue] = useState("");
   const manilaDateRef = useRef(getManilaDate());
   const activeCategoryRef = useRef(activeCategory);
@@ -107,6 +166,29 @@ export default function App() {
   useEffect(() => {
     selectedDateRef.current = selectedDate;
   }, [selectedDate]);
+
+  useEffect(() => {
+    writeUserUiState({
+      activeCategory,
+      employeeSearch,
+      employeeSearchDraft
+    });
+  }, [activeCategory, employeeSearch, employeeSearchDraft]);
+
+  useEffect(() => {
+    if (!session || !isDashboardLoading) {
+      setIsLoadingPopupVisible(false);
+      return undefined;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setIsLoadingPopupVisible(true);
+    }, 120);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [isDashboardLoading, session]);
 
   useEffect(() => {
     function handleServerIssue(event) {
@@ -214,6 +296,7 @@ export default function App() {
     const requestId = ++loadRequestRef.current;
 
     async function refreshDashboardData() {
+      setIsDashboardLoading(true);
       setStatus("Loading data...");
       try {
         const [employeeData, attendanceData, scheduleData] = await Promise.all([
@@ -234,6 +317,10 @@ export default function App() {
       } catch (error) {
         if (!cancelled && loadRequestRef.current === requestId) {
           setStatus(error.message);
+        }
+      } finally {
+        if (!cancelled && loadRequestRef.current === requestId) {
+          setIsDashboardLoading(false);
         }
       }
     }
@@ -341,6 +428,7 @@ export default function App() {
   const activeScheduleType = scheduleSetting?.schedule_type || selectedSchedule;
   const scheduleLocked = Boolean(scheduleSetting?.has_override);
   const selectedScheduleLabel = activeScheduleType === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
+  const showLoadingPopup = Boolean(session) && isDashboardLoading && isLoadingPopupVisible;
   const serverIssuePopup = serverIssue ? (
     <div className="server-error-backdrop" role="presentation">
       <section className="server-error-card" role="alertdialog" aria-modal="true" aria-labelledby="server-error-title">
@@ -356,9 +444,13 @@ export default function App() {
   ) : null;
 
   async function handleSignOut() {
+    clearUserUiState();
     clearPortalSession();
     setSession(null);
     setAuthMessage("");
+    setActiveCategory("regular");
+    setEmployeeSearch("");
+    setEmployeeSearchDraft("");
     await supabase.auth.signOut();
   }
 
@@ -438,10 +530,10 @@ export default function App() {
 
       <section className="surface user-workspace">
         <EmployeeGrid
-          key={activeCategory}
           employees={filteredEmployees}
           attendanceByEmployeeId={attendanceByEmployeeId}
           onClock={handleClock}
+          isLoading={isDashboardLoading}
           emptyMessage={employeeSearch.trim() ? "No employees match your search." : "No employees found for this category."}
         />
 
@@ -480,6 +572,17 @@ export default function App() {
           </div>
         </div>
       </section>
+
+      {showLoadingPopup ? (
+        <div className="roster-loading-backdrop" role="status" aria-live="polite" aria-atomic="true">
+          <div className="roster-loading-card">
+            <span className="roster-loading-spinner" aria-hidden="true" />
+            <p className="section-kicker">Switching roster</p>
+            <h2>Loading {activeCategoryTitle}</h2>
+            <p>Refreshing employee names and attendance data.</p>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

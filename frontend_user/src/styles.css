@@ -86,6 +86,53 @@ p {
   width: fit-content;
 }
 
+.roster-loading-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 9998;
+  display: grid;
+  place-items: center;
+  padding: 1rem;
+  background: rgba(32, 24, 18, 0.26);
+  backdrop-filter: blur(8px);
+  animation: roster-loading-backdrop-in 160ms ease-out both;
+}
+
+.roster-loading-card {
+  width: min(440px, 100%);
+  display: grid;
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 1.35rem 1.4rem 1.3rem;
+  border-radius: 24px;
+  border: 1px solid rgba(255, 255, 255, 0.7);
+  background: linear-gradient(180deg, rgba(255, 253, 248, 0.98), rgba(246, 238, 230, 0.98));
+  box-shadow: 0 24px 60px rgba(32, 27, 22, 0.22);
+  text-align: center;
+  animation: roster-loading-card-in 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.roster-loading-card h2 {
+  margin: 0;
+  font-size: 1.45rem;
+}
+
+.roster-loading-card p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.roster-loading-spinner {
+  width: 3rem;
+  height: 3rem;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, var(--accent), #e8b08d, var(--accent));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 0);
+  animation: roster-loading-spin 800ms linear infinite;
+}
+
 .controls {
   display: grid;
   gap: 0.75rem;
@@ -219,6 +266,32 @@ td input {
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes roster-loading-backdrop-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes roster-loading-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes roster-loading-spin {
+  to {
+    transform: rotate(360deg);
   }
 }
 
@@ -2160,7 +2233,8 @@ td input {
 }
 
 .employee-grid--two-up .employee-card--button {
-  min-height: 92px;
+  align-items: flex-start;
+  min-height: 128px;
   padding: 0.88rem 0.95rem 0.88rem 1.05rem;
 }
 
