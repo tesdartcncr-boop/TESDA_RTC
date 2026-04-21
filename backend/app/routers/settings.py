@@ -1,8 +1,18 @@
 from fastapi import APIRouter, HTTPException
 
-from ..schemas import AuthorizedEmailCreate, AuthorizedEmailStatusUpdate, ScheduleThresholdUpdate
+from ..schemas import AuthorizedEmailCreate, AuthorizedEmailStatusUpdate, ScheduleOverrideToggle, ScheduleThresholdUpdate, WeeklyScheduleUpdate
 from ..services.cache_revision import build_cache_revision, invalidate_cache_revision
-from ..services.schedule_settings import get_schedule_display_values, normalize_late_threshold, recalculate_attendance_for_date, upsert_schedule_setting
+from ..services.schedule_settings import (
+  get_schedule_display_values,
+  list_weekly_schedule_settings,
+  normalize_late_threshold,
+  list_schedule_overrides,
+  recalculate_all_attendance,
+  recalculate_attendance_for_date,
+  toggle_schedule_override,
+  upsert_schedule_setting,
+  upsert_weekly_schedule_settings,
+)
 from ..services.realtime import publish_event
 from ..supabase_client import get_supabase_client
 
@@ -101,8 +111,18 @@ async def update_authorized_email(email_id: int, payload: AuthorizedEmailStatusU
 
 
 @router.get("/schedule-threshold")
-def get_schedule_threshold(date: str) -> dict:
-  return get_schedule_display_values(date)
+def get_schedule_threshold(date: str, category: str = "regular") -> dict:
+  return get_schedule_display_values(date, category)
+
+
+@router.get("/weekly-schedules")
+def get_weekly_schedules(category: str = "regular") -> list[dict]:
+  return list_weekly_schedule_settings(category)
+
+
+@router.get("/schedule-overrides")
+def get_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
+  return list_schedule_overrides(date_from, date_to)
 
 
 @router.get("/cache-revision")
@@ -116,7 +136,7 @@ def get_cache_revision() -> dict:
 async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
   try:
     saved = upsert_schedule_setting(payload.date.isoformat(), payload.schedule_type, payload.late_threshold)
-    updated_rows = recalculate_attendance_for_date(payload.date.isoformat(), saved["schedule_type"], saved.get("late_threshold"))
+    updated_rows = recalculate_attendance_for_date(payload.date.isoformat())
   except ValueError as error:
     raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -132,6 +152,47 @@ async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
   await publish_event(
     "attendance.updated",
     f"Schedule updated for {payload.date.isoformat()} ({result['schedule_type']}, late {result['late_threshold']}); recalculated {result['updated_count']} attendance rows.",
+    result
+  )
+
+  return result
+
+
+@router.post("/schedule-overrides/toggle")
+async def toggle_schedule_override_route(payload: ScheduleOverrideToggle) -> dict:
+  try:
+    result = toggle_schedule_override(payload.date.isoformat())
+  except ValueError as error:
+    raise HTTPException(status_code=400, detail=str(error)) from error
+
+  invalidate_cache_revision()
+  await publish_event(
+    "attendance.updated",
+    f"Schedule override {'enabled' if result.get('enabled') else 'cleared'} for {payload.date.isoformat()}; recalculated {result['updated_count']} attendance rows.",
+    result
+  )
+
+  return result
+
+
+@router.put("/weekly-schedules")
+async def set_weekly_schedules(payload: WeeklyScheduleUpdate) -> dict:
+  try:
+    saved_rows = upsert_weekly_schedule_settings(payload.category, [item.model_dump() for item in payload.schedules])
+    updated_rows = recalculate_all_attendance(payload.category)
+  except ValueError as error:
+    raise HTTPException(status_code=400, detail=str(error)) from error
+
+  result = {
+    "schedules": saved_rows,
+    "category": payload.category,
+    "updated_count": len(updated_rows)
+  }
+
+  invalidate_cache_revision()
+  await publish_event(
+    "attendance.updated",
+    f"Weekly schedule updated; recalculated {result['updated_count']} attendance rows.",
     result
   )
 

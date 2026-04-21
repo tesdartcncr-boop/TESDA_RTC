@@ -357,12 +357,38 @@ export const api = {
   clearMasterSheetCache(params) {
     clearMasterSheetCache(params);
   },
-  getScheduleSettings(date) {
-    return request(`/settings/schedule-threshold?date=${date}`);
+  getScheduleSettings(date, category = "regular") {
+    return request(`/settings/schedule-threshold?date=${date}&category=${category}`);
+  },
+  getWeeklySchedules(category = "regular") {
+    return request(`/settings/weekly-schedules?category=${category}`);
+  },
+  getScheduleOverrides(dateFrom, dateTo) {
+    return request(`/settings/schedule-overrides?date_from=${dateFrom}&date_to=${dateTo}`);
   },
   setScheduleSettings(payload) {
     return request("/settings/schedule-threshold", {
       method: "PUT",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      clearMasterSheetCache();
+      return data;
+    });
+  },
+  setWeeklySchedules(payload) {
+    return request("/settings/weekly-schedules", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      clearMasterSheetCache();
+      return data;
+    });
+  },
+  toggleScheduleOverride(payload) {
+    return request("/settings/schedule-overrides/toggle", {
+      method: "POST",
       body: JSON.stringify(payload)
     }).then((data) => {
       invalidateCacheRevision();

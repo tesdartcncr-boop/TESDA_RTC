@@ -129,7 +129,15 @@ function formatTotalHours(record) {
   }
 
   const grossMinutes = Math.max(timeOutMinutes - timeInMinutes, 0);
-  const totalMinutes = Math.max(grossMinutes - 60, 0);
+  const workedMinutes = Math.max(grossMinutes - 60, 0);
+  if (String(record.category || "").trim().toLowerCase() !== "regular") {
+    return formatDuration(workedMinutes);
+  }
+
+  const scheduleType = String(record.schedule_type || "A").trim().toUpperCase();
+  const requiredMinutes = scheduleType === "B" ? 600 : 480;
+  const lateMinutes = Number(record.late_minutes || 0);
+  const totalMinutes = Math.max(Math.min(workedMinutes, requiredMinutes) - lateMinutes, 0);
   return formatDuration(totalMinutes);
 }
 
@@ -748,6 +756,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
         <ScheduleOverridePanel
           isModal
           initialDate={scheduleEditorDate}
+          category={activeCategory}
           title="Change Schedule"
           description={`Editing ${formatDisplayDate(scheduleEditorDate)}. Saving recalculates every employee on that date.`}
           saveLabel="Save Changes"

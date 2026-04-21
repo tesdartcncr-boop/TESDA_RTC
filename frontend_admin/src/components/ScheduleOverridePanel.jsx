@@ -23,6 +23,7 @@ export default function ScheduleOverridePanel({
   className = "",
   onSaved = null,
   initialDate,
+  category = "regular",
   isModal = false,
   onClose = null
 }) {
@@ -32,6 +33,7 @@ export default function ScheduleOverridePanel({
   const [status, setStatus] = useState("Ready");
   const [hasOverride, setHasOverride] = useState(false);
   const requestIdRef = useRef(0);
+  const categoryLabel = category === "jo" ? "Job Order" : "Regular";
 
   useEffect(() => {
     setDate(initialDate || getManilaDate());
@@ -39,10 +41,10 @@ export default function ScheduleOverridePanel({
 
   async function loadSchedule(activeDate) {
     const requestId = ++requestIdRef.current;
-    setStatus("Loading schedule...");
+    setStatus(`Loading ${categoryLabel} schedule...`);
 
     try {
-      const data = await api.getScheduleSettings(activeDate);
+      const data = await api.getScheduleSettings(activeDate, category);
       if (requestId !== requestIdRef.current) {
         return;
       }
@@ -50,7 +52,7 @@ export default function ScheduleOverridePanel({
       setScheduleType(data.schedule_type || "A");
       setLateThreshold(data.late_threshold || "08:00");
       setHasOverride(Boolean(data.has_override));
-      setStatus(data.has_override ? "Override loaded" : "Using default schedule");
+      setStatus(data.has_override ? `${categoryLabel} override loaded` : `Using default ${categoryLabel} schedule`);
     } catch (error) {
       if (requestId !== requestIdRef.current) {
         return;
@@ -66,7 +68,7 @@ export default function ScheduleOverridePanel({
     return () => {
       requestIdRef.current += 1;
     };
-  }, [date]);
+  }, [date, category]);
 
   useEffect(() => {
     function handleScheduleInvalidate(event) {
@@ -78,7 +80,7 @@ export default function ScheduleOverridePanel({
 
     window.addEventListener("schedule-settings:invalidate", handleScheduleInvalidate);
     return () => window.removeEventListener("schedule-settings:invalidate", handleScheduleInvalidate);
-  }, [date]);
+  }, [date, category]);
 
   useEffect(() => {
     if (!isModal) {
@@ -147,6 +149,7 @@ export default function ScheduleOverridePanel({
       </header>
 
       <p className="subtle">Status: {status}</p>
+  <p className="subtle">Category: {categoryLabel}</p>
 
       <div className="toolbar schedule-override-card__toolbar">
         <label>

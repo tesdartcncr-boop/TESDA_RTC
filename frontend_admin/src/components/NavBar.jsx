@@ -1,7 +1,7 @@
 const NAV_ITEMS = [
   { id: "employees", label: "Employees" },
   { id: "master", label: "Master Sheet" },
-  { id: "schedule", label: "Schedule Settings" },
+  { id: "schedule", label: "Weekly Schedule" },
   { id: "authEmails", label: "Authorized Emails" },
   { id: "reports", label: "Reports" }
 ];

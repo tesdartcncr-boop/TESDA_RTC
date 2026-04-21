@@ -54,6 +54,23 @@ class ScheduleThresholdUpdate(BaseModel):
   late_threshold: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
 
 
+class ScheduleOverrideToggle(BaseModel):
+  date: Date
+
+
+class WeeklyScheduleDay(BaseModel):
+  day_of_week: int = Field(ge=0, le=6)
+  schedule_start: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
+  schedule_end: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
+  late_threshold: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
+  required_hours: str = Field(pattern="^(?:\\d+(?:\\.\\d+)?|(?:0?\\d|1\\d|2[0-3]):[0-5]\\d)$")
+
+
+class WeeklyScheduleUpdate(BaseModel):
+  category: str = Field(default="regular", pattern="^(regular|jo)$")
+  schedules: list[WeeklyScheduleDay]
+
+
 class AuthorizedEmailCreate(BaseModel):
   email: EmailStr
 

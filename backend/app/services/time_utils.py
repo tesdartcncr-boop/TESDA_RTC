@@ -84,8 +84,19 @@ def _elapsed_minutes_excluding_lunch(start_minutes: int | None, end_minutes: int
   return max(gross_minutes - lunch_overlap_minutes, 0)
 
 
+def _resolve_schedule_details(schedule: str | dict | None) -> tuple[int, int, int]:
+  if isinstance(schedule, dict):
+    schedule_start = to_minutes(schedule.get("schedule_start")) or 480
+    schedule_end = to_minutes(schedule.get("schedule_end")) or 1020
+    required_minutes = int(schedule.get("required_minutes") or max(schedule_end - schedule_start - 60, 0))
+    return schedule_start, schedule_end, required_minutes
+
+  schedule_start, schedule_end, required_minutes, _break_minutes = get_schedule_details(schedule)
+  return schedule_start, schedule_end, required_minutes
+
+
 def calculate_dtr_metrics(
-  schedule_type: str,
+  schedule: str | dict,
   time_in: str | None,
   time_out: str | None,
   leave_type: str | None,
@@ -105,7 +116,7 @@ def calculate_dtr_metrics(
 
   time_in_minutes = to_minutes(normalized_in)
   time_out_minutes = to_minutes(normalized_out)
-  schedule_start, schedule_end, _, _break_minutes = get_schedule_details(schedule_type)
+  schedule_start, schedule_end, required_minutes = _resolve_schedule_details(schedule)
   late_threshold_minutes = to_minutes(late_threshold)
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start
@@ -114,9 +125,8 @@ def calculate_dtr_metrics(
 
   undertime_minutes = 0
   if time_in_minutes is not None and time_out_minutes is not None:
-    # Undertime is counted from the timeout up to the scheduled end of shift.
-    # The fixed lunch window is excluded only if it overlaps that missing interval.
-    undertime_minutes = _elapsed_minutes_excluding_lunch(time_out_minutes, schedule_end)
+    worked_minutes = _elapsed_minutes_excluding_lunch(time_in_minutes, time_out_minutes)
+    undertime_minutes = max(required_minutes - worked_minutes, 0)
 
   overtime_minutes = 0
   return late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out

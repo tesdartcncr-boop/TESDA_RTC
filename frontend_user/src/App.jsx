@@ -111,6 +111,14 @@ function formatDisplayDate(dateIso) {
   }).format(date);
 }
 
+function formatRequiredHours(value) {
+  if (typeof value === "string" && value.trim()) {
+    return value;
+  }
+
+  return "08:00";
+}
+
 export default function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
@@ -118,7 +126,6 @@ export default function App() {
   const initialUserUiState = readUserUiState();
   const [activeCategory, setActiveCategory] = useState(initialUserUiState.activeCategory);
   const [selectedDate, setSelectedDate] = useState(() => getManilaDate());
-  const [selectedSchedule, setSelectedSchedule] = useState("A");
   const [scheduleSetting, setScheduleSetting] = useState(null);
   const [employeeSearch, setEmployeeSearch] = useState(initialUserUiState.employeeSearch);
   const [employeeSearchDraft, setEmployeeSearchDraft] = useState(initialUserUiState.employeeSearchDraft || initialUserUiState.employeeSearch);
@@ -271,10 +278,9 @@ export default function App() {
     setRows(data);
   }
 
-  async function loadSchedule(date) {
-    const data = await api.getScheduleSettings(date);
+  async function loadSchedule(date, category) {
+    const data = await api.getScheduleSettings(date, category);
     setScheduleSetting(data);
-    setSelectedSchedule(data.schedule_type || "A");
   }
 
   function handleSearchSubmit(event) {
@@ -302,7 +308,7 @@ export default function App() {
         const [employeeData, attendanceData, scheduleData] = await Promise.all([
           api.getEmployees(activeCategory),
           api.getDailyAttendance(selectedDate, activeCategory),
-          api.getScheduleSettings(selectedDate)
+          api.getScheduleSettings(selectedDate, activeCategory)
         ]);
 
         if (cancelled || loadRequestRef.current !== requestId) {
@@ -312,7 +318,6 @@ export default function App() {
         setEmployees(employeeData);
         setRows(attendanceData);
         setScheduleSetting(scheduleData);
-        setSelectedSchedule(scheduleData.schedule_type || "A");
         setStatus("Live");
       } catch (error) {
         if (!cancelled && loadRequestRef.current === requestId) {
@@ -345,7 +350,7 @@ export default function App() {
 
       if (payload.type === "attendance.updated") {
         loadAttendance(currentDate, currentCategory).catch(() => {});
-        loadSchedule(currentDate).catch(() => {});
+        loadSchedule(currentDate, currentCategory).catch(() => {});
       } else if (payload.type === "employee.created" || payload.type === "employee.updated" || payload.type === "employee.deleted") {
         api.clearEmployeeCache();
         loadEmployees(currentCategory, { forceRefresh: true }).catch(() => {});
@@ -388,7 +393,6 @@ export default function App() {
       await api.clockAttendance({
         employee_id: employeeId,
         date: selectedDate,
-        schedule_type: scheduleSetting?.schedule_type || selectedSchedule,
         leave_type: leaveType,
         employee_password: employeePassword
       });
@@ -425,9 +429,9 @@ export default function App() {
 
   const activeCategoryTitle = getCategoryTitle(activeCategory);
   const activeCategorySummary = getCategorySummary(activeCategory);
-  const activeScheduleType = scheduleSetting?.schedule_type || selectedSchedule;
-  const scheduleLocked = Boolean(scheduleSetting?.has_override);
-  const selectedScheduleLabel = activeScheduleType === "A" ? "A (08:00-17:00)" : "B (08:00-19:00)";
+  const scheduleSummary = scheduleSetting
+    ? `${scheduleSetting.category_label || activeCategoryTitle} • ${scheduleSetting.day_name || "Weekly schedule"} • ${scheduleSetting.schedule_start || "08:00"} - ${scheduleSetting.schedule_end || "17:00"} • late ${scheduleSetting.late_threshold || "08:00"} • required ${formatRequiredHours(scheduleSetting.required_hours || scheduleSetting.required_minutes || "08:00")}`
+    : "Loading weekly schedule...";
   const showLoadingPopup = Boolean(session) && isDashboardLoading && isLoadingPopupVisible;
   const serverIssuePopup = serverIssue ? (
     <div className="server-error-backdrop" role="presentation">
@@ -451,6 +455,11 @@ export default function App() {
     setActiveCategory("regular");
     setEmployeeSearch("");
     setEmployeeSearchDraft("");
+    setEmployees([]);
+    setRows([]);
+    setScheduleSetting(null);
+    setStatus("Ready");
+    setIsDashboardLoading(true);
     await supabase.auth.signOut();
   }
 
@@ -542,14 +551,7 @@ export default function App() {
             Date
             <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
           </label>
-          <label>
-            Schedule Type
-            <select value={selectedSchedule} onChange={(event) => setSelectedSchedule(event.target.value)} disabled={scheduleLocked}>
-              <option value="A">A (08:00-17:00)</option>
-              <option value="B">B (08:00-19:00)</option>
-            </select>
-          </label>
-          {scheduleLocked ? <p className="hint">This date is locked to the admin schedule override.</p> : <p className="hint">Choose the schedule used for this clock action.</p>}
+          <p className="hint">The schedule follows the admin weekly rules automatically for the selected date.</p>
         </div>
 
         <div className="user-summary-footer">
@@ -567,7 +569,7 @@ export default function App() {
             <div className="status-card">
               <span>Status</span>
               <strong>{status}</strong>
-              <p>{selectedScheduleLabel}</p>
+              <p>{scheduleSummary}</p>
             </div>
           </div>
         </div>

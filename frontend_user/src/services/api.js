@@ -262,8 +262,8 @@ export const api = {
   getDailyAttendance(date, category) {
     return request(`/attendance/daily?date=${date}&category=${category}`);
   },
-  getScheduleSettings(date) {
-    return request(`/settings/schedule-threshold?date=${date}`);
+  getScheduleSettings(date, category = "regular") {
+    return request(`/settings/schedule-threshold?date=${date}&category=${category}`);
   },
   clockAttendance(payload) {
     return request("/attendance/clock", {
@@ -283,8 +283,8 @@ export const api = {
       return data;
     });
   },
-  getLateThreshold(date) {
-    return request(`/settings/schedule-threshold?date=${date}`);
+  getLateThreshold(date, category = "regular") {
+    return request(`/settings/schedule-threshold?date=${date}&category=${category}`);
   }
 };
 

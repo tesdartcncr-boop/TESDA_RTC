@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from ..schemas import AttendanceUpdate, ClockRequest, MasterSheetAttendanceUpsert
 from ..services.cache_revision import invalidate_cache_revision
-from ..services.schedule_settings import resolve_schedule_context
+from ..services.schedule_settings import clamp_regular_recorded_time, resolve_schedule_context
 from ..services.report_service import export_master_sheet_xlsx
 from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
@@ -218,9 +218,10 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
 def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: dict | None = None) -> dict:
   fallback_schedule_type = payload.schedule_type or (current or {}).get("schedule_type") or "A"
+  employee = _get_employee(payload.employee_id)
 
   try:
-    schedule_type, late_threshold = resolve_schedule_context(payload.date.isoformat(), fallback_schedule_type)
+    schedule_context = resolve_schedule_context(payload.date.isoformat(), employee.get("category"), fallback_schedule_type)
   except ValueError as error:
     raise HTTPException(status_code=400, detail=str(error)) from error
 
@@ -230,6 +231,8 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
 
   time_in_value = _normalize_sheet_token(payload.time_in)
   time_out_value = _normalize_sheet_token(payload.time_out)
+  if (employee.get("category") or "").strip().lower() == "regular":
+    time_in_value = clamp_regular_recorded_time(time_in_value)
 
   inferred_leave_type = None
   if is_leave_code(time_in_value):
@@ -249,15 +252,15 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
     normalized_out = time_out_value
   else:
     late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out = calculate_dtr_metrics(
-      schedule_type,
+      schedule_context,
       time_in_value,
       time_out_value,
       None,
-      late_threshold
+      schedule_context.get("late_threshold")
     )
 
   return {
-    "schedule_type": schedule_type,
+    "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type,
     "leave_type": leave_type,
     "time_in": normalized_in,
     "time_out": normalized_out,
@@ -421,7 +424,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     raise HTTPException(status_code=401, detail="Invalid employee password.")
 
   target_date = payload.date.isoformat() if payload.date else now_app_date()
-  schedule_type = (payload.schedule_type or "A").upper()
+  fallback_schedule_type = (payload.schedule_type or "A").upper()
   leave_type = (payload.leave_type or "").strip().upper() or None
 
   if leave_type and not is_leave_code(leave_type):
@@ -440,7 +443,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   requested_leave_type = leave_type or existing_leave_code
 
   try:
-    schedule_type, late_threshold = resolve_schedule_context(target_date, payload.schedule_type or "A")
+    schedule_context = resolve_schedule_context(target_date, employee.get("category"), fallback_schedule_type)
 
     if requested_leave_type:
       values = {
@@ -450,7 +453,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         "undertime_minutes": 0,
         "overtime_minutes": 0,
         "leave_type": requested_leave_type,
-        "schedule_type": schedule_type
+        "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type
       }
 
       if existing and existing.get("time_in") and existing.get("time_out"):
@@ -479,6 +482,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
       return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
     now_time = now_military_time()
+    recorded_time_in = clamp_regular_recorded_time(now_time) if (employee.get("category") or "").strip().lower() == "regular" else now_time
 
     # A completed record for the same day should not be clocked again.
     if existing and existing.get("time_in") and existing.get("time_out"):
@@ -487,11 +491,11 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     # Second tap records Time Out if Time In already exists.
     if existing and existing.get("time_in") and not existing.get("time_out") and not is_leave_code(existing.get("time_in")):
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
-        schedule_type,
+        schedule_context,
         existing.get("time_in"),
-        now_time,
+        recorded_time_in,
         existing.get("leave_type"),
-        late_threshold
+        schedule_context.get("late_threshold")
       )
 
       values = {
@@ -500,7 +504,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         "late_minutes": late,
         "undertime_minutes": undertime,
         "overtime_minutes": overtime,
-        "schedule_type": schedule_type,
+        "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type,
         "leave_type": existing.get("leave_type")
       }
 
@@ -510,11 +514,11 @@ async def clock_attendance(payload: ClockRequest) -> dict:
     else:
       # First tap records Time In and keeps Time Out empty.
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
-        schedule_type,
-        now_time,
+        schedule_context,
+        recorded_time_in,
         None,
         None,
-        late_threshold
+        schedule_context.get("late_threshold")
       )
       values = {
         "employee_id": payload.employee_id,
@@ -525,7 +529,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
         "undertime_minutes": undertime,
         "overtime_minutes": overtime,
         "leave_type": None,
-        "schedule_type": schedule_type
+        "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type
       }
 
       if existing:
@@ -561,7 +565,7 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
   employee = _get_employee(current["employee_id"])
 
   target_date = (payload.date.isoformat() if payload.date else current.get("date"))
-  schedule_type = (payload.schedule_type or current.get("schedule_type") or "A").upper()
+  fallback_schedule_type = (payload.schedule_type or current.get("schedule_type") or "A").upper()
   leave_type = (payload.leave_type if payload.leave_type is not None else current.get("leave_type"))
   leave_type = (leave_type or "").strip().upper() or None
 
@@ -573,9 +577,11 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
 
   time_in_value = (time_in or "").strip() or None
   time_out_value = (time_out or "").strip() or None
+  if (employee.get("category") or "").strip().lower() == "regular":
+    time_in_value = clamp_regular_recorded_time(time_in_value)
 
   try:
-    schedule_type, late_threshold = resolve_schedule_context(target_date, schedule_type)
+    schedule_context = resolve_schedule_context(target_date, employee.get("category"), fallback_schedule_type)
 
     if leave_type and not time_in_value and not time_out_value:
       late = 0
@@ -585,11 +591,11 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
       normalized_out = None
     else:
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
-        schedule_type,
+        schedule_context,
         time_in_value,
         time_out_value,
         None,
-        late_threshold
+        schedule_context.get("late_threshold")
       )
   except ValueError as error:
     raise HTTPException(status_code=400, detail=str(error)) from error
@@ -602,7 +608,7 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
     "undertime_minutes": undertime,
     "overtime_minutes": overtime,
     "leave_type": leave_type,
-    "schedule_type": schedule_type
+    "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type
   }
 
   response = supabase.table("attendance").update(values).eq("id", attendance_id).execute()

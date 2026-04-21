@@ -23,8 +23,8 @@ const PAGE_DETAILS = {
     accent: "Attendance grid"
   },
   schedule: {
-    label: "Schedule Settings",
-    summary: "Tune the date-specific schedule format and late threshold used by attendance calculations.",
+    label: "Weekly Schedule",
+    summary: "Use the calendar to mark green default days and red 10-hour exceptions for Regular, while Job Order stays on the editable weekly grid.",
     accent: "Policy control"
   },
   authEmails: {

@@ -49,6 +49,7 @@ def build_cache_revision() -> str:
     ("employees", "created_at"),
     ("attendance", "updated_at"),
     ("schedule_settings", "created_at"),
+    ("weekly_schedule_settings", "updated_at"),
   ):
     try:
       snapshots.append(_table_snapshot(table_name, timestamp_column))

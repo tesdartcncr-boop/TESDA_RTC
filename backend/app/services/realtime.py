@@ -1,5 +1,3 @@
-from collections.abc import Iterable
-
 from fastapi import WebSocket
 
 
@@ -15,8 +13,12 @@ class ConnectionManager:
     self.active_connections.discard(websocket)
 
   async def broadcast(self, payload: dict) -> None:
+    connections = tuple(self.active_connections)
+    if not connections:
+      return
+
     stale_connections: list[WebSocket] = []
-    for connection in self.active_connections:
+    for connection in connections:
       try:
         await connection.send_json(payload)
       except Exception:

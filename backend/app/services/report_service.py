@@ -31,7 +31,17 @@ def _calculate_total_hours(record: dict | None) -> str:
     return ""
 
   gross_minutes = max(time_out_minutes - time_in_minutes, 0)
-  total_minutes = max(gross_minutes - 60, 0)
+  worked_minutes = max(gross_minutes - 60, 0)
+  category = str(record.get("category") or "").strip().lower()
+
+  if category == "regular":
+    schedule_type = str(record.get("schedule_type") or "A").strip().upper()
+    required_minutes = 600 if schedule_type == "B" else 480
+    late_minutes = int(record.get("late_minutes") or 0)
+    total_minutes = max(min(worked_minutes, required_minutes) - late_minutes, 0)
+  else:
+    total_minutes = worked_minutes
+
   return format_duration(total_minutes)
 
 

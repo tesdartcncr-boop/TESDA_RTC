@@ -1,7 +1,7 @@
 -- DTR Automation Seed Data
 -- Run this file after supabase_schema.sql
 
-truncate table attendance, schedule_settings, notifications, backup_logs, employees restart identity cascade;
+truncate table attendance, weekly_schedule_settings, schedule_settings, notifications, backup_logs, employees restart identity cascade;
 
 insert into employees (id, first_name, second_name, last_name, extension, employee_password_hash, name, category) values
 (1, 'Alicia', null, 'Ramos', null, 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Alicia Ramos', 'regular'),
@@ -26,6 +26,22 @@ insert into schedule_settings (id, date, schedule_type, late_threshold) values
 (8, '2026-04-08', 'A', '08:00'),
 (9, '2026-04-09', 'B', '08:30'),
 (10, '2026-04-10', 'B', '09:00');
+
+insert into weekly_schedule_settings (id, category, day_of_week, schedule_start, schedule_end, late_threshold, required_minutes) values
+(1, 'regular', 0, '08:00', '17:00', '08:01', 480),
+(2, 'regular', 1, '08:00', '17:00', '10:01', 480),
+(3, 'regular', 2, '08:00', '17:00', '10:01', 480),
+(4, 'regular', 3, '08:00', '17:00', '10:01', 480),
+(5, 'regular', 4, '08:00', '17:00', '10:01', 480),
+(6, 'regular', 5, '08:00', '17:00', '10:01', 480),
+(7, 'regular', 6, '08:00', '17:00', '10:01', 480),
+(8, 'jo', 0, '08:00', '17:00', '08:00', 480),
+(9, 'jo', 1, '08:00', '17:00', '08:00', 480),
+(10, 'jo', 2, '08:00', '17:00', '08:00', 480),
+(11, 'jo', 3, '08:00', '17:00', '08:00', 480),
+(12, 'jo', 4, '08:00', '17:00', '08:00', 480),
+(13, 'jo', 5, '08:00', '17:00', '08:00', 480),
+(14, 'jo', 6, '08:00', '17:00', '08:00', 480);
 
 insert into attendance (
   id,
@@ -78,6 +94,7 @@ insert into backup_logs (id, filename, source, created_at) values
 (5, 'dtr-backup-20260410-173001.json', 'manual', '2026-04-10 17:30:01+08');
 
 select setval('employees_id_seq', (select max(id) from employees));
+select setval('weekly_schedule_settings_id_seq', (select max(id) from weekly_schedule_settings));
 select setval('schedule_settings_id_seq', (select max(id) from schedule_settings));
 select setval('attendance_id_seq', (select max(id) from attendance));
 select setval('notifications_id_seq', (select max(id) from notifications));
