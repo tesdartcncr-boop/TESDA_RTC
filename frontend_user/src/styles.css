@@ -728,7 +728,73 @@ p {
 }
 
 .user-clock-controls {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  gap: 0.85rem;
+}
+
+.user-clock-controls__date-display {
+  position: relative;
+  display: grid;
+  gap: 0.55rem;
+  min-height: 8.5rem;
+  padding: 1.1rem 1.15rem;
+  border-radius: 22px;
+  border: 1px solid rgba(178, 77, 44, 0.14);
+  box-shadow: 0 14px 32px rgba(32, 27, 22, 0.06);
+  overflow: hidden;
+}
+
+.user-clock-controls__date-display {
+  background:
+    radial-gradient(circle at top right, rgba(244, 213, 199, 0.62), transparent 42%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 241, 234, 0.96));
+}
+
+.user-clock-controls__date-display::after {
+  content: "";
+  position: absolute;
+  inset: auto 0.9rem 0.9rem auto;
+  width: 5rem;
+  height: 5rem;
+  border-radius: 999px;
+  background: radial-gradient(circle, rgba(178, 77, 44, 0.18), transparent 72%);
+  pointer-events: none;
+}
+
+.user-clock-controls__kicker {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.32rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+
+.user-clock-controls__kicker {
+  color: var(--accent-strong);
+  background: rgba(178, 77, 44, 0.1);
+}
+
+.user-clock-controls__date-display strong {
+  max-width: 16ch;
+  font-size: clamp(1.2rem, 2.2vw, 1.75rem);
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+}
+
+.user-clock-controls__date-display p {
+  margin: 0;
+  color: var(--muted);
+  line-height: 1.45;
+}
+
+.user-clock-controls__date-display p {
+  max-width: 26ch;
 }
 
 .dashboard-header {
@@ -1391,6 +1457,9 @@ td input {
     grid-column: 1 / -1;
   }
 }
+  .user-clock-controls {
+    grid-template-columns: 1fr;
+  }
 
 :root {
   color-scheme: light;
@@ -2168,12 +2237,14 @@ td input {
   }
 
   .user-topbar {
-    grid-template-columns: 1fr;
-    align-items: stretch;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 0.85rem;
   }
 
   .user-topbar .secondary-btn {
     width: fit-content;
+    justify-self: end;
   }
 
   .hero,
@@ -2216,6 +2287,17 @@ td input {
 
   table {
     min-width: 760px;
+  }
+}
+
+@media (max-width: 540px) {
+  .user-topbar {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  .user-topbar .secondary-btn {
+    justify-self: start;
   }
 }
 

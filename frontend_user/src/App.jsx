@@ -581,12 +581,12 @@ export default function App() {
           emptyMessage={employeeSearch.trim() ? "No employees match your search." : "No employees found for this category."}
         />
 
-        <div className="filters user-clock-controls">
-          <label>
-            Date
-            <input type="date" value={selectedDate} onChange={(event) => setSelectedDate(event.target.value)} />
-          </label>
-          <p className="hint">The schedule follows the admin weekly rules automatically for the selected date.</p>
+        <div className="filters user-clock-controls" aria-label="Clock date information">
+          <div className="user-clock-controls__date-display">
+            <span className="user-clock-controls__kicker">Clock date</span>
+            <strong>{formatDisplayDate(selectedDate)}</strong>
+            <p>Clocking uses today&apos;s Manila date automatically.</p>
+          </div>
         </div>
 
         <div className="user-summary-footer">
