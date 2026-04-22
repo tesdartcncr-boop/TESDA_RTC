@@ -23,8 +23,34 @@ def _calculate_total_hours(record: dict | None) -> str:
   if not record:
     return ""
 
-  if (record.get("leave_type") or "").strip() or is_leave_code(record.get("time_in")) or is_leave_code(record.get("time_out")):
+  leave_type = (record.get("leave_type") or "").strip().upper() or None
+  time_in_token = (record.get("time_in") or "").strip().upper()
+  time_out_token = (record.get("time_out") or "").strip().upper()
+  is_ob_record = leave_type == "OB" or time_in_token == "OB" or time_out_token == "OB"
+  if leave_type and leave_type != "OB":
     return ""
+
+  schedule_type = str(record.get("schedule_type") or "A").strip().upper()
+  required_minutes = 600 if schedule_type == "B" else 480
+  schedule_start_minutes = to_minutes("07:00") or 420
+
+  if is_ob_record:
+    if not time_out_token:
+      return format_duration(required_minutes)
+
+    effective_time_in_minutes = 7 * 60 if time_in_token in {"", "OB"} else to_minutes(record.get("time_in"))
+    if effective_time_in_minutes is None:
+      effective_time_in_minutes = 7 * 60
+
+    schedule_end_minutes = 1140 if schedule_type == "B" else 1020
+    time_out_minutes = schedule_end_minutes if time_out_token == "OB" else to_minutes(record.get("time_out"))
+    if time_out_minutes is None:
+      return format_duration(required_minutes)
+
+    gross_minutes = max(time_out_minutes - effective_time_in_minutes, 0)
+    worked_minutes = max(gross_minutes - 60, 0)
+    total_minutes = max(min(worked_minutes, required_minutes), 0)
+    return format_duration(total_minutes)
 
   time_in_minutes = to_minutes(record.get("time_in"))
   time_out_minutes = to_minutes(record.get("time_out"))
@@ -36,8 +62,6 @@ def _calculate_total_hours(record: dict | None) -> str:
   category = str(record.get("category") or "").strip().lower()
 
   if category == "regular":
-    schedule_type = str(record.get("schedule_type") or "A").strip().upper()
-    required_minutes = 600 if schedule_type == "B" else 480
     late_minutes = int(record.get("late_minutes") or 0)
     total_minutes = max(min(worked_minutes, required_minutes) - late_minutes, 0)
   else:

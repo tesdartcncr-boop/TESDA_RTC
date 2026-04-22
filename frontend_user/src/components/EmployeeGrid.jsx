@@ -32,6 +32,14 @@ function getClockCopy(attendance, leaveType) {
   }
 
   if (hasTimeIn && !hasTimeOut) {
+    if (recordedLeaveCode === "OB") {
+      return {
+        isComplete: false,
+        title: "Record Time Out",
+        description: "OB time-in is counted from 7:00 AM. Leave the leave type as OB to close it as a full OB day, or switch Leave type to None to clock out normally."
+      };
+    }
+
     return {
       isComplete: false,
       title: "Record Time Out",
@@ -99,7 +107,7 @@ function getRosterCardCopy(attendance) {
   if (leaveType) {
     return {
       badge: leaveType,
-      note: "Leave tagged for this date",
+      note: leaveType === "OB" && hasTimeIn && !hasTimeOut ? "OB counts from 7:00 AM until Time Out is saved" : "Leave tagged for this date",
       tone: "is-leave",
       timeIn: formatRosterTime("time_in"),
       timeOut: formatRosterTime("time_out")

@@ -105,6 +105,31 @@ def calculate_dtr_metrics(
   normalized_in = normalize_time_token(time_in)
   normalized_out = normalize_time_token(time_out)
   normalized_leave = (leave_type or "").upper() or None
+  schedule_start_minutes, schedule_end_minutes, required_minutes = _resolve_schedule_details(schedule)
+  ob_time_in_minutes = 7 * 60
+  ob_time_in_token = "07:00"
+
+  if normalized_leave == "OB" or normalized_in == "OB" or normalized_out == "OB":
+    schedule_end_token = f"{schedule_end_minutes // 60:02d}:{schedule_end_minutes % 60:02d}"
+
+    if normalized_out is None:
+      return 0, 0, 0, ob_time_in_token, None
+
+    is_ob_time_in = normalized_in in {None, "OB"}
+    effective_time_in_token = ob_time_in_token if is_ob_time_in else normalized_in
+    effective_time_in_minutes = ob_time_in_minutes if is_ob_time_in else to_minutes(normalized_in)
+
+    is_ob_time_out = normalized_out == "OB"
+    time_out_minutes = schedule_end_minutes if is_ob_time_out else to_minutes(normalized_out)
+    if time_out_minutes is None:
+      return 0, 0, 0, ob_time_in_token, None
+
+    if effective_time_in_minutes is None:
+      return 0, 0, 0, ob_time_in_token, None
+
+    worked_minutes = _elapsed_minutes_excluding_lunch(effective_time_in_minutes, time_out_minutes)
+    undertime_minutes = max(required_minutes - worked_minutes, 0)
+    return 0, undertime_minutes, 0, effective_time_in_token, ("OB" if is_ob_time_out else normalized_out)
 
   # Full-day leave codes bypass late/undertime/overtime computation.
   if normalized_leave in LEAVE_CODES:
@@ -116,7 +141,7 @@ def calculate_dtr_metrics(
 
   time_in_minutes = to_minutes(normalized_in)
   time_out_minutes = to_minutes(normalized_out)
-  schedule_start, schedule_end, required_minutes = _resolve_schedule_details(schedule)
+  schedule_start = schedule_start_minutes
   late_threshold_minutes = to_minutes(late_threshold)
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start

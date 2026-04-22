@@ -122,6 +122,13 @@ def _is_open_leave_record(row: dict | None) -> bool:
   return bool(_extract_leave_code(row)) and not (row.get("time_out") or "").strip()
 
 
+def _is_open_ob_record(row: dict | None) -> bool:
+  if not row:
+    return False
+
+  return _extract_leave_code(row) == "OB" and not (row.get("time_out") or "").strip()
+
+
 def _display_sheet_value(row: dict, field: str) -> str:
   leave_type = (row.get("leave_type") or "").strip().upper() or None
   value = row.get(field)
@@ -256,8 +263,10 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
   if explicit_leave_type and not is_leave_code(explicit_leave_type):
     raise HTTPException(status_code=400, detail="Leave type must be SL, VL, or OB.")
 
-  time_in_value = _normalize_sheet_token(payload.time_in)
-  time_out_value = _normalize_sheet_token(payload.time_out)
+  raw_time_in_value = _normalize_sheet_token(payload.time_in)
+  raw_time_out_value = _normalize_sheet_token(payload.time_out)
+  time_in_value = raw_time_in_value
+  time_out_value = raw_time_out_value
   if (employee.get("category") or "").strip().lower() == "regular":
     time_in_value = clamp_regular_recorded_time(time_in_value)
 
@@ -271,7 +280,15 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
 
   leave_type = explicit_leave_type or inferred_leave_type
 
-  if leave_type:
+  if leave_type == "OB":
+    late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out = calculate_dtr_metrics(
+      schedule_context,
+      raw_time_in_value,
+      raw_time_out_value,
+      leave_type,
+      schedule_context.get("late_threshold")
+    )
+  elif leave_type:
     late_minutes = 0
     undertime_minutes = 0
     overtime_minutes = 0
@@ -475,10 +492,105 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   )
   existing = existing_response.data[0] if existing_response.data else None
   existing_leave_code = _extract_leave_code(existing)
-  requested_leave_type = leave_type or existing_leave_code
+  existing_open_ob = _is_open_ob_record(existing)
+  requested_leave_type = leave_type or (existing_leave_code if existing_leave_code in {"SL", "VL"} else None)
+  now_time = now_military_time()
+  recorded_clock_time = clamp_regular_recorded_time(now_time) if (employee.get("category") or "").strip().lower() == "regular" else now_time
 
   try:
     schedule_context = resolve_schedule_context(target_date, employee.get("category"), fallback_schedule_type)
+
+    if leave_type == "OB":
+      if existing and existing.get("time_in") and existing.get("time_out"):
+        raise HTTPException(status_code=400, detail="Time In and Time Out already recorded for this date.")
+
+      if existing and existing.get("time_in") and not existing.get("time_out"):
+        late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
+          schedule_context,
+          existing.get("time_in"),
+          "OB",
+          "OB",
+          schedule_context.get("late_threshold")
+        )
+        action = "Time Out"
+      elif existing_open_ob:
+        late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
+          schedule_context,
+          existing.get("time_in"),
+          "OB",
+          "OB",
+          schedule_context.get("late_threshold")
+        )
+        action = "Time Out"
+      else:
+        late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
+          schedule_context,
+          recorded_clock_time,
+          None,
+          "OB",
+          schedule_context.get("late_threshold")
+        )
+        action = "Time In"
+
+      values = {
+        "employee_id": payload.employee_id,
+        "date": target_date,
+        "late_minutes": late,
+        "undertime_minutes": undertime,
+        "overtime_minutes": overtime,
+        "leave_type": "OB",
+        "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type,
+        "time_in": normalized_in,
+        "time_out": normalized_out,
+      }
+
+      if existing:
+        result = supabase.table("attendance").update(values).eq("id", existing["id"]).execute()
+      else:
+        result = supabase.table("attendance").insert(values).execute()
+
+      row = result.data[0]
+      await publish_event(
+        "attendance.updated",
+        f"{employee['name']} recorded OB {action} on {target_date}",
+        row
+      )
+      invalidate_cache_revision()
+      invalidate_cached_values()
+      return {**row, "employee_name": employee["name"], "category": employee["category"]}
+
+    if existing_open_ob and not leave_type:
+      if existing and existing.get("time_in") and existing.get("time_out"):
+        raise HTTPException(status_code=400, detail="Time In and Time Out already recorded for this date.")
+
+      late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
+        schedule_context,
+        existing.get("time_in"),
+        recorded_clock_time,
+        "OB",
+        schedule_context.get("late_threshold")
+      )
+
+      values = {
+        "time_in": normalized_in,
+        "time_out": normalized_out,
+        "late_minutes": late,
+        "undertime_minutes": undertime,
+        "overtime_minutes": overtime,
+        "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type,
+        "leave_type": "OB"
+      }
+
+      result = supabase.table("attendance").update(values).eq("id", existing["id"]).execute()
+      row = result.data[0]
+      await publish_event(
+        "attendance.updated",
+        f"{employee['name']} recorded OB Time Out on {target_date}",
+        row
+      )
+      invalidate_cache_revision()
+      invalidate_cached_values()
+      return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
     if requested_leave_type:
       values = {
@@ -517,9 +629,6 @@ async def clock_attendance(payload: ClockRequest) -> dict:
       invalidate_cached_values()
       return {**row, "employee_name": employee["name"], "category": employee["category"]}
 
-    now_time = now_military_time()
-    recorded_time_in = clamp_regular_recorded_time(now_time) if (employee.get("category") or "").strip().lower() == "regular" else now_time
-
     # A completed record for the same day should not be clocked again.
     if existing and existing.get("time_in") and existing.get("time_out"):
       raise HTTPException(status_code=400, detail="Time In and Time Out already recorded for this date.")
@@ -529,8 +638,8 @@ async def clock_attendance(payload: ClockRequest) -> dict:
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
         schedule_context,
         existing.get("time_in"),
-        recorded_time_in,
-        existing.get("leave_type"),
+        recorded_clock_time,
+        None,
         schedule_context.get("late_threshold")
       )
 
@@ -551,7 +660,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
       # First tap records Time In and keeps Time Out empty.
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
         schedule_context,
-        recorded_time_in,
+        recorded_clock_time,
         None,
         None,
         schedule_context.get("late_threshold")
@@ -620,7 +729,15 @@ async def update_attendance(attendance_id: int, payload: AttendanceUpdate) -> di
   try:
     schedule_context = resolve_schedule_context(target_date, employee.get("category"), fallback_schedule_type)
 
-    if leave_type and not time_in_value and not time_out_value:
+    if leave_type == "OB":
+      late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
+        schedule_context,
+        time_in_value,
+        time_out_value,
+        leave_type,
+        schedule_context.get("late_threshold")
+      )
+    elif leave_type and not time_in_value and not time_out_value:
       late = 0
       undertime = 0
       overtime = 0

@@ -119,8 +119,37 @@ function parseTimeTokenToMinutes(value) {
 }
 
 function formatTotalHours(record) {
-  if (!record || record.leave_type || isLeaveCode(record.time_in) || isLeaveCode(record.time_out)) {
+  if (!record) {
     return "—";
+  }
+
+  const leaveType = String(record.leave_type || "").trim().toUpperCase();
+  const timeInToken = String(record.time_in || "").trim().toUpperCase();
+  const timeOutToken = String(record.time_out || "").trim().toUpperCase();
+  const isObRecord = leaveType === "OB" || timeInToken === "OB" || timeOutToken === "OB";
+
+  if (leaveType && leaveType !== "OB") {
+    return "—";
+  }
+
+  const scheduleType = String(record.schedule_type || "A").trim().toUpperCase();
+  const requiredMinutes = scheduleType === "B" ? 600 : 480;
+
+  if (isObRecord) {
+    if (!timeOutToken) {
+      return formatDuration(requiredMinutes);
+    }
+
+    const effectiveTimeInMinutes = timeInToken && timeInToken !== "OB" ? parseTimeTokenToMinutes(record.time_in) : 7 * 60;
+    const scheduleEndMinutes = scheduleType === "B" ? 19 * 60 : 17 * 60;
+    const timeOutMinutes = timeOutToken === "OB" ? scheduleEndMinutes : parseTimeTokenToMinutes(record.time_out);
+    if (timeOutMinutes === null) {
+      return formatDuration(requiredMinutes);
+    }
+
+    const grossMinutes = Math.max(timeOutMinutes - effectiveTimeInMinutes, 0);
+    const workedMinutes = Math.max(grossMinutes - 60, 0);
+    return formatDuration(Math.max(Math.min(workedMinutes, requiredMinutes), 0));
   }
 
   const timeInMinutes = parseTimeTokenToMinutes(record.time_in);
@@ -135,8 +164,6 @@ function formatTotalHours(record) {
     return formatDuration(workedMinutes);
   }
 
-  const scheduleType = String(record.schedule_type || "A").trim().toUpperCase();
-  const requiredMinutes = scheduleType === "B" ? 600 : 480;
   const lateMinutes = Number(record.late_minutes || 0);
   const totalMinutes = Math.max(Math.min(workedMinutes, requiredMinutes) - lateMinutes, 0);
   return formatDuration(totalMinutes);

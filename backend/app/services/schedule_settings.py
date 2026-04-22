@@ -414,13 +414,27 @@ def _compose_schedule_context(
 ) -> dict:
   resolved_category = normalize_weekly_category(category)
   schedule_type = normalize_schedule_type((override or {}).get("schedule_type")) or weekly_schedule.get("schedule_type") or normalize_schedule_type(fallback_schedule_type) or category_to_schedule_type(resolved_category)
-  late_threshold = normalize_late_threshold((override or {}).get("late_threshold")) or weekly_schedule["late_threshold"]
+
+  if override:
+    schedule_start_minutes, schedule_end_minutes, required_minutes, _ = get_schedule_details(schedule_type)
+    schedule_start = _format_minutes_as_time(schedule_start_minutes)
+    schedule_end = _format_minutes_as_time(schedule_end_minutes)
+    late_threshold = normalize_late_threshold((override or {}).get("late_threshold")) or get_default_late_threshold(schedule_type)
+  else:
+    schedule_start = weekly_schedule["schedule_start"]
+    schedule_end = weekly_schedule["schedule_end"]
+    required_minutes = int(weekly_schedule.get("required_minutes") or DEFAULT_REQUIRED_MINUTES)
+    late_threshold = weekly_schedule["late_threshold"]
 
   return {
     **weekly_schedule,
     "date": date_value,
     "category": resolved_category,
     "schedule_type": schedule_type,
+    "schedule_start": schedule_start,
+    "schedule_end": schedule_end,
+    "required_minutes": required_minutes,
+    "required_hours": _format_required_hours(required_minutes),
     "late_threshold": late_threshold,
     "has_override": bool(override),
     "schedule_source": "date_override" if override else "weekly"
@@ -674,7 +688,15 @@ def _recalculate_attendance_rows(attendance_rows: list[dict], employee_categorie
       elif is_leave_code(normalized_time_out):
         leave_type = normalized_time_out
 
-    if leave_type:
+    if leave_type == "OB":
+      late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out = calculate_dtr_metrics(
+        context,
+        time_in_value,
+        time_out_value,
+        leave_type,
+        context.get("late_threshold")
+      )
+    elif leave_type:
       late_minutes = 0
       undertime_minutes = 0
       overtime_minutes = 0
