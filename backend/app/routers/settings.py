@@ -8,7 +8,7 @@ from ..services.schedule_settings import (
   normalize_late_threshold,
   list_schedule_overrides,
   recalculate_all_attendance,
-  recalculate_attendance_for_date,
+  recalculate_attendance_for_category,
   toggle_schedule_override,
   upsert_schedule_setting,
   upsert_weekly_schedule_settings,
@@ -136,13 +136,13 @@ def get_weekly_schedules(category: str = "regular") -> list[dict]:
 
 
 @router.get("/schedule-overrides")
-def get_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
-  cache_key = f"settings:schedule-overrides:{date_from}:{date_to}"
+def get_schedule_overrides(date_from: str, date_to: str, category: str = "regular") -> list[dict]:
+  cache_key = f"settings:schedule-overrides:{category}:{date_from}:{date_to}"
   cached_value = get_cached_value(cache_key)
   if cached_value is not None:
     return cached_value
 
-  result = list_schedule_overrides(date_from, date_to)
+  result = list_schedule_overrides(date_from, date_to, category)
   set_cached_value(cache_key, result)
   return result
 
@@ -157,13 +157,14 @@ def get_cache_revision() -> dict:
 @router.put("/schedule-threshold")
 async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
   try:
-    saved = upsert_schedule_setting(payload.date.isoformat(), payload.schedule_type, payload.late_threshold)
-    updated_rows = recalculate_attendance_for_date(payload.date.isoformat())
+    saved = upsert_schedule_setting(payload.date.isoformat(), payload.schedule_type, payload.late_threshold, payload.category)
+    updated_rows = recalculate_attendance_for_category(payload.date.isoformat(), payload.category)
   except ValueError as error:
     raise HTTPException(status_code=400, detail=str(error)) from error
 
   result = {
     "date": saved["date"],
+    "category": saved.get("category") or payload.category,
     "schedule_type": saved.get("schedule_type") or "A",
     "late_threshold": normalize_late_threshold(saved.get("late_threshold")) or DEFAULT_LATE_THRESHOLD,
     "has_override": True,
@@ -184,7 +185,7 @@ async def set_schedule_threshold(payload: ScheduleThresholdUpdate) -> dict:
 @router.post("/schedule-overrides/toggle")
 async def toggle_schedule_override_route(payload: ScheduleOverrideToggle) -> dict:
   try:
-    result = toggle_schedule_override(payload.date.isoformat())
+    result = toggle_schedule_override(payload.date.isoformat(), payload.category)
   except ValueError as error:
     raise HTTPException(status_code=400, detail=str(error)) from error
 

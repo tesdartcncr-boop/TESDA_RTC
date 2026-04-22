@@ -24,7 +24,7 @@ const PAGE_DETAILS = {
   },
   schedule: {
     label: "Weekly Schedule",
-    summary: "Use the calendar to mark green default days and red 10-hour exceptions for Regular, while Job Order stays on the editable weekly grid.",
+    summary: "Use the calendar to manage category-specific red-date exceptions, then fine-tune Job Order with the weekly grid.",
     accent: "Policy control"
   },
   authEmails: {

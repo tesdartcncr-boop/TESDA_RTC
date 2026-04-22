@@ -216,17 +216,26 @@ function normalizeTimeValue(value, fallback) {
   return `${hours}:${minutes}`;
 }
 
+function getDefaultLateThreshold(category, dayOfWeek) {
+  if (category === "jo") {
+    return dayOfWeek < 5 ? "08:01" : "09:01";
+  }
+
+  return dayOfWeek === 0 ? "08:01" : "10:01";
+}
+
 function buildDefaultRow(dayOfWeek, category = "jo") {
+  const isRegular = category === "regular";
   return {
     category,
     category_label: CATEGORY_LABELS[category] || "Weekly",
     day_of_week: dayOfWeek,
     day_name: WEEKDAYS[dayOfWeek].day_name,
-    schedule_start: "07:00",
+    schedule_start: "08:00",
     schedule_end: "17:00",
-    late_threshold: dayOfWeek === 0 ? "08:01" : "10:01",
+    late_threshold: getDefaultLateThreshold(category, dayOfWeek),
     required_hours: "8",
-    schedule_type: category === "regular" ? "A" : "B",
+    schedule_type: isRegular ? "A" : "B",
     has_override: false
   };
 }
@@ -246,11 +255,11 @@ function normalizeRows(rows, category = "jo") {
       category_label: rowCategory === "regular" ? "Regular" : "Job Order",
       day_of_week: dayOfWeek,
       day_name: WEEKDAYS[dayOfWeek].day_name,
-      schedule_start: normalizeTimeValue(row?.schedule_start, "07:00"),
+      schedule_start: normalizeTimeValue(row?.schedule_start, "08:00"),
       schedule_end: normalizeTimeValue(row?.schedule_end, "17:00"),
-      late_threshold: normalizeTimeValue(row?.late_threshold, dayOfWeek === 0 ? "08:01" : "10:01"),
+      late_threshold: normalizeTimeValue(row?.late_threshold, getDefaultLateThreshold(rowCategory, dayOfWeek)),
       required_hours: normalizeRequiredHours(row?.required_hours ?? row?.required_minutes),
-      schedule_type: String(row?.schedule_type || (category === "regular" ? "A" : "B")).trim().toUpperCase(),
+      schedule_type: String(row?.schedule_type || (rowCategory === "regular" ? "A" : "B")).trim().toUpperCase(),
       has_override: Boolean(row?.has_override)
     });
   });
@@ -260,7 +269,7 @@ function normalizeRows(rows, category = "jo") {
 
 export default function WeeklySchedulePanel({
   title = "Weekly Schedule Calendar",
-  description = "Regular dates stay green for the default 8-hour rule; click any date to turn it red for a 10-hour exception, and click again to clear it. Job Order keeps the editable seven-day grid.",
+  description = "Regular and Job Order each get their own date exception calendar. Click any date to turn it red for a 10-hour exception, then use the weekly grid to fine-tune Job Order rules.",
   saveLabel = "Save Weekly Schedule",
   className = "",
   onSaved
@@ -290,44 +299,43 @@ export default function WeeklySchedulePanel({
   const calendarCells = useMemo(() => buildCalendarCells(calendarMonth), [calendarMonth]);
   const calendarWeeks = useMemo(() => chunkCalendarCells(calendarCells), [calendarCells]);
   const calendarMonthLabel = useMemo(() => formatMonthLabel(calendarMonth), [calendarMonth]);
+  const calendarRows = useMemo(() => {
+    return calendarWeeks.map((week, weekIndex) => (
+      <tr key={`week-${weekIndex}`}>
+        {week.map((cell) => {
+          if (cell.blank) {
+            return <td key={cell.key} className="weekly-schedule-calendar__cell weekly-schedule-calendar__cell--blank" aria-hidden="true" />;
+          }
+
+          const override = calendarOverrides[cell.dateKey];
+          const isRed = String(override?.schedule_type || "A").trim().toUpperCase() === "B";
+          const cellStateClass = isRed ? "is-red" : "is-green";
+
+          return (
+            <td key={cell.key} className={`weekly-schedule-calendar__cell ${cellStateClass} ${cell.isToday ? "is-today" : ""}`.trim()}>
+              <button
+                type="button"
+                className="weekly-schedule-calendar__day"
+                onClick={() => handleCalendarDateToggle(cell.dateKey)}
+                disabled={isCalendarSaving}
+                aria-pressed={isRed}
+                aria-label={`${cell.dateKey} ${activeCategoryLabel} ${isRed ? "10-hour exception" : "default 8-hour schedule"}`}
+              >
+                <span>{cell.day}</span>
+                <strong>{isRed ? "10h" : "8h"}</strong>
+                <small>{isRed ? "Red" : "Green"}</small>
+              </button>
+            </td>
+          );
+        })}
+      </tr>
+    ));
+  }, [activeCategoryLabel, calendarOverrides, calendarWeeks, handleCalendarDateToggle, isCalendarSaving]);
   const calendarHeaderCells = CALENDAR_WEEKDAY_LABELS.map((label) => (
     <th key={label} scope="col">
       {label}
     </th>
   ));
-
-  const regularCalendarRows = isRegularView
-    ? calendarWeeks.map((week, weekIndex) => (
-        <tr key={`week-${weekIndex}`}>
-          {week.map((cell) => {
-            if (cell.blank) {
-              return <td key={cell.key} className="weekly-schedule-calendar__cell weekly-schedule-calendar__cell--blank" aria-hidden="true" />;
-            }
-
-            const override = calendarOverrides[cell.dateKey];
-            const isRed = String(override?.schedule_type || "A").trim().toUpperCase() === "B";
-            const cellStateClass = isRed ? "is-red" : "is-green";
-
-            return (
-              <td key={cell.key} className={`weekly-schedule-calendar__cell ${cellStateClass} ${cell.isToday ? "is-today" : ""}`.trim()}>
-                <button
-                  type="button"
-                  className="weekly-schedule-calendar__day"
-                  onClick={() => handleCalendarDateToggle(cell.dateKey)}
-                  disabled={isCalendarSaving}
-                  aria-pressed={isRed}
-                  aria-label={`${cell.dateKey} ${isRed ? "10-hour exception" : "default 8-hour schedule"}`}
-                >
-                  <span>{cell.day}</span>
-                  <strong>{isRed ? "10h" : "8h"}</strong>
-                  <small>{isRed ? "Red" : "Green"}</small>
-                </button>
-              </td>
-            );
-          })}
-        </tr>
-      ))
-    : null;
 
   const jobOrderCards = isRegularView
     ? null
@@ -392,20 +400,26 @@ export default function WeeklySchedulePanel({
   }, []);
 
   useEffect(() => {
-    if (!isRegularView) {
-      return undefined;
-    }
+    let mounted = true;
 
-    loadCalendarOverrides({ monthKey: calendarMonth }).catch(() => {});
+    loadCalendarOverrides({ category: selectedCategory, monthKey: calendarMonth }).catch(() => {});
 
     function handleScheduleInvalidate(event) {
       const payloadDate = event?.detail?.payload?.date || event?.detail?.date || "";
+      const payloadCategory = event?.detail?.payload?.category || event?.detail?.category || "";
+      if (payloadCategory && payloadCategory !== selectedCategory) {
+        return;
+      }
+
       if (payloadDate && !payloadDate.startsWith(calendarMonth)) {
         return;
       }
 
-      calendarOverridesCacheRef.current.delete(calendarMonth);
-      loadCalendarOverrides({ monthKey: calendarMonth, forceRefresh: true }).catch(() => {});
+      const cacheKey = `${selectedCategory}:${calendarMonth}`;
+      calendarOverridesCacheRef.current.delete(cacheKey);
+      if (mounted) {
+        loadCalendarOverrides({ category: selectedCategory, monthKey: calendarMonth, forceRefresh: true }).catch(() => {});
+      }
     }
 
     window.addEventListener("schedule-settings:invalidate", handleScheduleInvalidate);
@@ -415,8 +429,9 @@ export default function WeeklySchedulePanel({
       window.removeEventListener("schedule-settings:invalidate", handleScheduleInvalidate);
       setIsCalendarSaving(false);
       endCalendarBusy();
+      mounted = false;
     };
-  }, [isRegularView, calendarMonth]);
+  }, [selectedCategory, calendarMonth]);
 
   useEffect(() => {
     if (isRegularView) {
@@ -490,19 +505,20 @@ export default function WeeklySchedulePanel({
     setCalendarBusyMessage("");
   }
 
-  function updateCalendarCache(monthKey, overrides) {
-    calendarOverridesCacheRef.current.set(monthKey, {
+  function getCalendarCacheKey(category, monthKey) {
+    return `${category}:${monthKey}`;
+  }
+
+  function updateCalendarCache(category, monthKey, overrides) {
+    calendarOverridesCacheRef.current.set(getCalendarCacheKey(category, monthKey), {
       savedAt: Date.now(),
       data: overrides
     });
   }
 
-  async function loadCalendarOverrides({ monthKey = calendarMonth, forceRefresh = false } = {}) {
-    if (!isRegularView) {
-      return {};
-    }
-
-    const cacheEntry = calendarOverridesCacheRef.current.get(monthKey);
+  async function loadCalendarOverrides({ category = selectedCategory, monthKey = calendarMonth, forceRefresh = false } = {}) {
+    const cacheKey = getCalendarCacheKey(category, monthKey);
+    const cacheEntry = calendarOverridesCacheRef.current.get(cacheKey);
     if (!forceRefresh && cacheEntry && Date.now() - cacheEntry.savedAt < CALENDAR_OVERRIDE_CACHE_TTL_MS) {
       setCalendarOverrides(cacheEntry.data);
       const cachedCount = countRedOverrides(cacheEntry.data);
@@ -511,7 +527,7 @@ export default function WeeklySchedulePanel({
     }
 
     const requestId = ++calendarLoadRequestRef.current;
-    const loadingMessage = `Loading ${formatMonthLabel(monthKey)} calendar...`;
+    const loadingMessage = `Loading ${CATEGORY_LABELS[category] || "Weekly"} ${formatMonthLabel(monthKey)} calendar...`;
     const { dateFrom, dateTo } = getMonthBounds(monthKey);
 
     setIsCalendarSaving(true);
@@ -519,13 +535,13 @@ export default function WeeklySchedulePanel({
     beginCalendarBusy(loadingMessage);
 
     try {
-      const data = await api.getScheduleOverrides(dateFrom, dateTo);
+      const data = await api.getScheduleOverrides(dateFrom, dateTo, category);
       if (requestId !== calendarLoadRequestRef.current) {
         return {};
       }
 
       const nextOverrides = buildOverridesMap(data);
-      updateCalendarCache(monthKey, nextOverrides);
+      updateCalendarCache(category, monthKey, nextOverrides);
       setCalendarOverrides(nextOverrides);
       const redCount = countRedOverrides(nextOverrides);
       setCalendarStatus(redCount ? `${redCount} red date${redCount === 1 ? "" : "s"} loaded` : "No red dates yet");
@@ -560,25 +576,22 @@ export default function WeeklySchedulePanel({
   }
 
   function handleCalendarMonthChange(offset) {
-    if (!isRegularView) {
-      return;
-    }
-
     setCalendarMonth((currentMonth) => shiftMonth(currentMonth, offset));
   }
 
   async function handleCalendarDateToggle(dateKey) {
-    if (!isRegularView || isCalendarSaving) {
+    if (isCalendarSaving) {
       return;
     }
 
+    const category = selectedCategory;
     const monthKey = calendarMonth;
     setIsCalendarSaving(true);
     beginCalendarBusy(`Updating ${dateKey} schedule...`);
     setCalendarStatus(`Updating ${dateKey}...`);
 
     try {
-      const data = await api.toggleScheduleOverride({ date: dateKey });
+      const data = await api.toggleScheduleOverride({ date: dateKey, category });
 
       setCalendarOverrides((currentOverrides) => {
         const nextOverrides = { ...currentOverrides };
@@ -592,7 +605,7 @@ export default function WeeklySchedulePanel({
           delete nextOverrides[dateKey];
         }
 
-        updateCalendarCache(monthKey, nextOverrides);
+        updateCalendarCache(category, monthKey, nextOverrides);
         return nextOverrides;
       });
 
@@ -697,7 +710,7 @@ export default function WeeklySchedulePanel({
           </div>
           <div className="weekly-schedule-card__header-meta">
             <div className="status-pill status-pill--live">{isRegularView ? "8-hour default" : `${activeCategoryLabel} schedule`}</div>
-            <p className="subtle">Status: {isRegularView ? calendarStatus : status}</p>
+            <p className="subtle">Status: {isRegularView ? calendarStatus : `${status} • ${calendarStatus}`}</p>
           </div>
         </header>
 
@@ -726,9 +739,9 @@ export default function WeeklySchedulePanel({
           </button>
         </div>
 
-        {isRegularView ? (
-          <>
-            <div className="weekly-schedule-summary-grid">
+        <div className="weekly-schedule-summary-grid">
+          {isRegularView ? (
+            <>
               <article className="weekly-schedule-summary-card">
                 <span>Required hours</span>
                 <strong>8 hours</strong>
@@ -754,46 +767,78 @@ export default function WeeklySchedulePanel({
                 <strong>12:00 PM - 1:00 PM</strong>
                 <p>Lunch is excluded from credited hours and undertime calculations.</p>
               </article>
+            </>
+          ) : (
+            <>
+              <article className="weekly-schedule-summary-card">
+                <span>Supported shifts</span>
+                <strong>8 or 10 hours</strong>
+                <p>Job Order keeps the same 8-hour and 10-hour schedule lengths.</p>
+              </article>
+              <article className="weekly-schedule-summary-card">
+                <span>Calculation floor</span>
+                <strong>8:00 AM</strong>
+                <p>Earlier punches stay on the record, but Job Order calculations start at 8:00 AM.</p>
+              </article>
+              <article className="weekly-schedule-summary-card">
+                <span>Weekday late</span>
+                <strong>8:01 AM</strong>
+                <p>Monday to Friday use the Job Order late threshold.</p>
+              </article>
+              <article className="weekly-schedule-summary-card">
+                <span>Weekend late</span>
+                <strong>9:01 AM</strong>
+                <p>Saturday and Sunday use the later Job Order threshold.</p>
+              </article>
+              <article className="weekly-schedule-summary-card">
+                <span>OB anchor</span>
+                <strong>8:00 AM</strong>
+                <p>OB time-in is counted from 8:00 AM for Job Order employees.</p>
+              </article>
+            </>
+          )}
+        </div>
+
+        <section className="weekly-schedule-calendar weekly-schedule-calendar--compact card">
+          <div className="weekly-schedule-calendar__header">
+            <div>
+              <p className="section-kicker">Date exceptions</p>
+              <h4>{calendarMonthLabel}</h4>
+              <p className="subtle">
+                {isRegularView
+                  ? "Green keeps the default 8-hour schedule. Click a date to turn it red for 10 hours, then click again to return it to green."
+                  : "Green keeps the Job Order default schedule. Click a date to turn it red for 10 hours, then click again to return it to green."}
+              </p>
             </div>
+            <div className="weekly-schedule-calendar__controls">
+              <button type="button" className="secondary-btn" onClick={() => handleCalendarMonthChange(-1)} disabled={isCalendarSaving}>
+                Previous
+              </button>
+              <button type="button" className="secondary-btn" onClick={() => setCalendarMonth(getManilaMonth())} disabled={isCalendarSaving}>
+                Current
+              </button>
+              <button type="button" className="secondary-btn" onClick={() => handleCalendarMonthChange(1)} disabled={isCalendarSaving}>
+                Next
+              </button>
+            </div>
+          </div>
 
-            <section className="weekly-schedule-calendar weekly-schedule-calendar--compact card">
-              <div className="weekly-schedule-calendar__header">
-                <div>
-                  <p className="section-kicker">Date exceptions</p>
-                  <h4>{calendarMonthLabel}</h4>
-                  <p className="subtle">Green keeps the default 8-hour schedule. Click a date to turn it red for 10 hours, then click again to return it to green.</p>
-                </div>
-                <div className="weekly-schedule-calendar__controls">
-                  <button type="button" className="secondary-btn" onClick={() => handleCalendarMonthChange(-1)} disabled={isCalendarSaving}>
-                    Previous
-                  </button>
-                  <button type="button" className="secondary-btn" onClick={() => setCalendarMonth(getManilaMonth())} disabled={isCalendarSaving}>
-                    Current
-                  </button>
-                  <button type="button" className="secondary-btn" onClick={() => handleCalendarMonthChange(1)} disabled={isCalendarSaving}>
-                    Next
-                  </button>
-                </div>
-              </div>
+          <div className="weekly-schedule-calendar__legend">
+            <span className="weekly-schedule-calendar__legend-item is-green">Default 8 hours</span>
+            <span className="weekly-schedule-calendar__legend-item is-red">10-hour exception</span>
+          </div>
 
-              <div className="weekly-schedule-calendar__legend">
-                <span className="weekly-schedule-calendar__legend-item is-green">Default 8 hours</span>
-                <span className="weekly-schedule-calendar__legend-item is-red">10-hour exception</span>
-              </div>
+          <div className="weekly-schedule-calendar__table-wrap">
+            <table className="weekly-schedule-calendar__table" aria-label={`${calendarMonthLabel} schedule calendar`}>
+              <thead>
+                <tr>{calendarHeaderCells}</tr>
+              </thead>
+              <tbody>{calendarRows}</tbody>
+            </table>
+          </div>
+        </section>
 
-              <div className="weekly-schedule-calendar__table-wrap">
-                <table className="weekly-schedule-calendar__table" aria-label={`${calendarMonthLabel} schedule calendar`}>
-                  <thead>
-                    <tr>{calendarHeaderCells}</tr>
-                  </thead>
-                  <tbody>{regularCalendarRows}</tbody>
-                </table>
-              </div>
-            </section>
-          </>
-        ) : (
-          <div className="weekly-schedule-grid">{jobOrderCards}</div>
-        )}
+        {!isRegularView ? <div className="weekly-schedule-grid">{jobOrderCards}</div> : null}
 
         <footer className="weekly-schedule-card__footer">
           {isRegularView ? (

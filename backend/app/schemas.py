@@ -50,12 +50,14 @@ class MasterSheetAttendanceUpsert(BaseModel):
 
 class ScheduleThresholdUpdate(BaseModel):
   date: Date
+  category: str = Field(default="regular", pattern="^(regular|jo)$")
   schedule_type: Optional[str] = Field(default=None, pattern="^(A|B)$")
   late_threshold: str = Field(pattern="^([01]\\d|2[0-3]):[0-5]\\d$")
 
 
 class ScheduleOverrideToggle(BaseModel):
   date: Date
+  category: str = Field(default="regular", pattern="^(regular|jo)$")
 
 
 class WeeklyScheduleDay(BaseModel):

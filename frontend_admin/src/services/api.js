@@ -363,8 +363,8 @@ export const api = {
   getWeeklySchedules(category = "regular") {
     return request(`/settings/weekly-schedules?category=${category}`);
   },
-  getScheduleOverrides(dateFrom, dateTo) {
-    return request(`/settings/schedule-overrides?date_from=${dateFrom}&date_to=${dateTo}`);
+  getScheduleOverrides(dateFrom, dateTo, category = "regular") {
+    return request(`/settings/schedule-overrides?date_from=${dateFrom}&date_to=${dateTo}&category=${category}`);
   },
   setScheduleSettings(payload) {
     return request("/settings/schedule-threshold", {

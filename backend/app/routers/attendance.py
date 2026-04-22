@@ -5,7 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from ..schemas import AttendanceUpdate, ClockRequest, MasterSheetAttendanceUpsert
 from ..services.cache_revision import invalidate_cache_revision
-from ..services.schedule_settings import clamp_regular_recorded_time, resolve_schedule_context
+from ..services.schedule_settings import calculate_attendance_snapshot, clamp_regular_recorded_time, resolve_schedule_context
 from ..services.report_service import export_master_sheet_xlsx
 from ..services.realtime import publish_event
 from ..services.passwords import verify_employee_password
@@ -28,9 +28,25 @@ def _enrich_rows(rows: list[dict], employees: dict[int, dict]) -> list[dict]:
   enriched: list[dict] = []
   for row in rows:
     employee = employees.get(row["employee_id"], {})
+    snapshot = {}
+    date_value = str(row.get("date") or "")
+    if date_value:
+      try:
+        snapshot = calculate_attendance_snapshot(
+          date_value,
+          employee.get("category"),
+          row.get("schedule_type"),
+          row.get("time_in"),
+          row.get("time_out"),
+          row.get("leave_type")
+        )
+      except Exception:
+        snapshot = {}
+
     enriched.append(
       {
         **row,
+        **snapshot,
         "employee_name": employee.get("name", "Unknown Employee"),
         "category": employee.get("category", "unknown")
       }
@@ -198,9 +214,23 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
     for row in attendance_rows:
       employee = employee_map.get(row["employee_id"], {})
+      snapshot = {}
+      try:
+        snapshot = calculate_attendance_snapshot(
+          row["date"],
+          employee.get("category"),
+          row.get("schedule_type"),
+          row.get("time_in"),
+          row.get("time_out"),
+          row.get("leave_type")
+        )
+      except Exception:
+        snapshot = {}
+
       records.append(
         {
           **row,
+          **snapshot,
           "employee_name": employee.get("name", "Unknown Employee"),
           "display_name": _compose_display_name(employee),
           "category": employee.get("category", "unknown"),
@@ -236,7 +266,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
 def _master_sheet_cache_key(date_from: str, date_to: str, category: str) -> str:
   normalized_category = (category or "all").strip().lower() or "all"
-  return f"attendance:master-sheet:{normalized_category}:{date_from}:{date_to}"
+  return f"attendance:master-sheet:v2:{normalized_category}:{date_from}:{date_to}"
 
 
 def _get_cached_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
@@ -267,7 +297,8 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
   raw_time_out_value = _normalize_sheet_token(payload.time_out)
   time_in_value = raw_time_in_value
   time_out_value = raw_time_out_value
-  if (employee.get("category") or "").strip().lower() == "regular":
+  employee_category = (employee.get("category") or "").strip().lower()
+  if employee_category == "regular":
     time_in_value = clamp_regular_recorded_time(time_in_value)
 
   inferred_leave_type = None
@@ -495,7 +526,8 @@ async def clock_attendance(payload: ClockRequest) -> dict:
   existing_open_ob = _is_open_ob_record(existing)
   requested_leave_type = leave_type or (existing_leave_code if existing_leave_code in {"SL", "VL"} else None)
   now_time = now_military_time()
-  recorded_clock_time = clamp_regular_recorded_time(now_time) if (employee.get("category") or "").strip().lower() == "regular" else now_time
+  employee_category = (employee.get("category") or "").strip().lower()
+  recorded_clock_time = clamp_regular_recorded_time(now_time) if employee_category == "regular" else now_time
 
   try:
     schedule_context = resolve_schedule_context(target_date, employee.get("category"), fallback_schedule_type)

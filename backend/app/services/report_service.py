@@ -9,6 +9,7 @@ from openpyxl.utils import get_column_letter
 
 from .response_cache import get_cached_value, set_cached_value
 from ..supabase_client import get_supabase_client
+from .schedule_settings import calculate_attendance_snapshot
 from .time_utils import is_leave_code, to_minutes
 
 
@@ -32,15 +33,18 @@ def _calculate_total_hours(record: dict | None) -> str:
 
   schedule_type = str(record.get("schedule_type") or "A").strip().upper()
   required_minutes = 600 if schedule_type == "B" else 480
-  schedule_start_minutes = to_minutes("07:00") or 420
+  category = str(record.get("category") or "").strip().lower()
+  record_floor_minutes = 8 * 60 if category == "jo" else 7 * 60
 
   if is_ob_record:
     if not time_out_token:
       return format_duration(required_minutes)
 
-    effective_time_in_minutes = 7 * 60 if time_in_token in {"", "OB"} else to_minutes(record.get("time_in"))
+    effective_time_in_minutes = record_floor_minutes if time_in_token in {"", "OB"} else to_minutes(record.get("time_in"))
     if effective_time_in_minutes is None:
-      effective_time_in_minutes = 7 * 60
+      effective_time_in_minutes = record_floor_minutes
+    else:
+      effective_time_in_minutes = max(effective_time_in_minutes, record_floor_minutes)
 
     schedule_end_minutes = 1140 if schedule_type == "B" else 1020
     time_out_minutes = schedule_end_minutes if time_out_token == "OB" else to_minutes(record.get("time_out"))
@@ -57,15 +61,12 @@ def _calculate_total_hours(record: dict | None) -> str:
   if time_in_minutes is None or time_out_minutes is None:
     return ""
 
+  time_in_minutes = max(time_in_minutes, record_floor_minutes)
+
   gross_minutes = max(time_out_minutes - time_in_minutes, 0)
   worked_minutes = max(gross_minutes - 60, 0)
-  category = str(record.get("category") or "").strip().lower()
-
-  if category == "regular":
-    late_minutes = int(record.get("late_minutes") or 0)
-    total_minutes = max(min(worked_minutes, required_minutes) - late_minutes, 0)
-  else:
-    total_minutes = worked_minutes
+  late_minutes = int(record.get("late_minutes") or 0)
+  total_minutes = max(min(worked_minutes, required_minutes) - late_minutes, 0)
 
   return format_duration(total_minutes)
 
@@ -84,7 +85,7 @@ def get_month_range(month: str) -> tuple[str, str]:
 
 
 def get_enriched_attendance(month: str | None = None) -> list[dict]:
-  cache_key = f"reports:enriched-attendance:{(month or 'all').strip() or 'all'}"
+  cache_key = f"reports:enriched-attendance:v2:{(month or 'all').strip() or 'all'}"
   cached_rows = get_cached_value(cache_key)
   if cached_rows is not None:
     return cached_rows
@@ -103,8 +104,24 @@ def get_enriched_attendance(month: str | None = None) -> list[dict]:
   enriched = []
   for row in attendance_rows:
     employee = employee_map.get(row["employee_id"], {})
+    snapshot = {}
+    date_value = str(row.get("date") or "")
+    if date_value:
+      try:
+        snapshot = calculate_attendance_snapshot(
+          date_value,
+          employee.get("category"),
+          row.get("schedule_type"),
+          row.get("time_in"),
+          row.get("time_out"),
+          row.get("leave_type")
+        )
+      except Exception:
+        snapshot = {}
+
     merged = {
       **row,
+      **snapshot,
       "employee_name": employee.get("name", "Unknown Employee"),
       "category": employee.get("category", "unknown")
     }

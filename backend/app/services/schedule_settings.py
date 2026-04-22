@@ -14,6 +14,7 @@ DEFAULT_SCHEDULE_END = "17:00"
 DEFAULT_REQUIRED_MINUTES = 480
 DEFAULT_WEEKLY_CATEGORY = "regular"
 DEFAULT_REGULAR_EARLIEST_RECORD_TIME = "07:00"
+DEFAULT_JO_EARLIEST_RECORD_TIME = "08:00"
 VALID_SCHEDULE_TYPES = {"A", "B"}
 VALID_WEEKLY_CATEGORIES = {"regular", "jo"}
 CATEGORY_SCHEDULE_TYPES = {"regular": "A", "jo": "B"}
@@ -35,6 +36,28 @@ REGULAR_PRESETS = {
     "schedule_start": "08:00",
     "schedule_end": "19:00"
   }
+}
+JO_PRESETS = {
+  480: {
+    "label": "8-hour",
+    "required_minutes": 480,
+    "late_threshold_weekday": "08:01",
+    "late_threshold_weekend": "09:01",
+    "schedule_start": "08:00",
+    "schedule_end": "17:00"
+  },
+  600: {
+    "label": "10-hour",
+    "required_minutes": 600,
+    "late_threshold_weekday": "08:01",
+    "late_threshold_weekend": "09:01",
+    "schedule_start": "08:00",
+    "schedule_end": "19:00"
+  }
+}
+CATEGORY_EARLIEST_RECORD_TIME = {
+  "regular": DEFAULT_REGULAR_EARLIEST_RECORD_TIME,
+  "jo": DEFAULT_JO_EARLIEST_RECORD_TIME,
 }
 _CACHE_TTL_SECONDS = 30.0
 _OPTIONAL_CACHE_MARKER = "__dtr_optional_cache__"
@@ -136,12 +159,26 @@ def schedule_type_from_required_minutes(required_minutes: Any) -> str:
 
 
 def get_regular_schedule_preset(required_minutes: Any) -> dict:
+  return get_weekly_schedule_preset(DEFAULT_WEEKLY_CATEGORY, required_minutes)
+
+
+def get_weekly_schedule_preset(category: str | None, required_minutes: Any) -> dict:
+  resolved_category = normalize_weekly_category(category)
   try:
     minutes_value = int(required_minutes)
   except (TypeError, ValueError):
     minutes_value = DEFAULT_REQUIRED_MINUTES
 
-  return REGULAR_PRESETS.get(minutes_value, REGULAR_PRESETS[DEFAULT_REQUIRED_MINUTES])
+  presets = JO_PRESETS if resolved_category == "jo" else REGULAR_PRESETS
+  return presets.get(minutes_value, presets[DEFAULT_REQUIRED_MINUTES])
+
+
+def _get_weekly_late_threshold(category: str | None, day_of_week: int, preset: dict) -> str:
+  resolved_category = normalize_weekly_category(category)
+  if resolved_category == "jo":
+    return preset["late_threshold_weekday"] if day_of_week < 5 else preset["late_threshold_weekend"]
+
+  return preset["late_threshold_monday"] if day_of_week == 0 else preset["late_threshold_weekday"]
 
 
 def _format_required_hours(total_minutes: int) -> str:
@@ -168,14 +205,24 @@ def _normalize_time_or_default(value: Any, default: str) -> str:
 
 
 def clamp_regular_recorded_time(value: Any) -> str | None:
+  return clamp_recorded_time(value, DEFAULT_WEEKLY_CATEGORY)
+
+
+def clamp_recorded_time(value: Any, category: str | None = None) -> str | None:
+  resolved_category = normalize_weekly_category(category)
   normalized = normalize_time_token(value if value is None else str(value))
   if normalized is None or is_leave_code(normalized):
     return normalized
 
-  if to_minutes(normalized) is not None and to_minutes(normalized) < to_minutes(DEFAULT_REGULAR_EARLIEST_RECORD_TIME):
-    return DEFAULT_REGULAR_EARLIEST_RECORD_TIME
+  earliest_record_time = CATEGORY_EARLIEST_RECORD_TIME.get(resolved_category, DEFAULT_REGULAR_EARLIEST_RECORD_TIME)
+  if to_minutes(normalized) is not None and to_minutes(normalized) < to_minutes(earliest_record_time):
+    return earliest_record_time
 
   return normalized
+
+
+def clamp_jo_recorded_time(value: Any) -> str | None:
+  return clamp_recorded_time(value, "jo")
 
 
 def _required_hours_to_minutes(value: Any) -> int:
@@ -202,7 +249,7 @@ def _required_hours_to_minutes(value: Any) -> int:
 
 def _default_weekly_schedule(day_of_week: int, category: str | None = None) -> dict:
   resolved_category = normalize_weekly_category(category)
-  preset = get_regular_schedule_preset(DEFAULT_REQUIRED_MINUTES)
+  preset = get_weekly_schedule_preset(resolved_category, DEFAULT_REQUIRED_MINUTES)
   return {
     "category": resolved_category,
     "category_label": "Job Order" if resolved_category == "jo" else "Regular",
@@ -210,7 +257,7 @@ def _default_weekly_schedule(day_of_week: int, category: str | None = None) -> d
     "day_name": WEEKDAY_NAMES[day_of_week],
     "schedule_start": preset["schedule_start"],
     "schedule_end": preset["schedule_end"],
-    "late_threshold": preset["late_threshold_monday"] if day_of_week == 0 else preset["late_threshold_weekday"],
+    "late_threshold": _get_weekly_late_threshold(resolved_category, day_of_week, preset),
     "required_minutes": preset["required_minutes"],
     "required_hours": _format_required_hours(DEFAULT_REQUIRED_MINUTES),
     "schedule_type": schedule_type_from_required_minutes(preset["required_minutes"]) if resolved_category == DEFAULT_WEEKLY_CATEGORY else category_to_schedule_type(resolved_category),
@@ -225,16 +272,11 @@ def _serialize_weekly_schedule(row: dict | None, day_of_week: int, category: str
 
   required_minutes = int(row.get("required_minutes") or DEFAULT_REQUIRED_MINUTES)
   resolved_category = normalize_weekly_category(row.get("category") or category)
-  preset = get_regular_schedule_preset(required_minutes)
+  preset = get_weekly_schedule_preset(resolved_category, required_minutes)
   schedule_type = schedule_type_from_required_minutes(required_minutes) if resolved_category == DEFAULT_WEEKLY_CATEGORY else category_to_schedule_type(resolved_category)
-  if resolved_category == DEFAULT_WEEKLY_CATEGORY:
-    late_threshold = preset["late_threshold_monday"] if day_of_week == 0 else preset["late_threshold_weekday"]
-    schedule_start = preset["schedule_start"]
-    schedule_end = preset["schedule_end"]
-  else:
-    late_threshold = _normalize_time_or_default(row.get("late_threshold"), DEFAULT_LATE_THRESHOLD)
-    schedule_start = _normalize_time_or_default(row.get("schedule_start"), DEFAULT_SCHEDULE_START)
-    schedule_end = _normalize_time_or_default(row.get("schedule_end"), DEFAULT_SCHEDULE_END)
+  late_threshold = _normalize_time_or_default(row.get("late_threshold"), _get_weekly_late_threshold(resolved_category, day_of_week, preset))
+  schedule_start = _normalize_time_or_default(row.get("schedule_start"), preset["schedule_start"])
+  schedule_end = _normalize_time_or_default(row.get("schedule_end"), preset["schedule_end"])
   return {
     **default_schedule,
     "category": resolved_category,
@@ -448,12 +490,12 @@ def _build_weekly_schedule_index(category: str | None) -> dict[int, dict]:
   }
 
 
-def _build_schedule_override_index(date_values: set[str]) -> dict[str, dict]:
+def _build_schedule_override_index(date_values: set[str], category: str | None = None) -> dict[str, dict]:
   if not date_values:
     return {}
 
   sorted_dates = sorted(date_values)
-  overrides = list_schedule_overrides(sorted_dates[0], sorted_dates[-1])
+  overrides = list_schedule_overrides(sorted_dates[0], sorted_dates[-1], category)
   return {
     row["date"]: row
     for row in overrides
@@ -467,8 +509,9 @@ def get_default_late_threshold(schedule_type: str | None = None) -> str:
   return _format_minutes_as_time(schedule_start_minutes)
 
 
-def fetch_schedule_override(date_value: str) -> dict | None:
-  cache_key = _schedule_cache_key("override", date_value)
+def fetch_schedule_override(date_value: str, category: str | None = None) -> dict | None:
+  resolved_category = normalize_weekly_category(category)
+  cache_key = _schedule_cache_key("override", resolved_category, date_value)
   cached_found, cached_value = _read_optional_schedule_cache(cache_key)
   if cached_found:
     return cached_value
@@ -477,13 +520,31 @@ def fetch_schedule_override(date_value: str) -> dict | None:
   try:
     response = (
       supabase.table("schedule_settings")
-      .select("date,schedule_type,late_threshold")
+      .select("category,date,schedule_type,late_threshold")
+      .eq("category", resolved_category)
       .eq("date", date_value)
       .limit(1)
       .execute()
     )
   except Exception:
-    return None
+    try:
+      response = (
+        supabase.table("schedule_settings")
+        .select("date,schedule_type,late_threshold")
+        .eq("date", date_value)
+        .limit(1)
+        .execute()
+      )
+    except Exception:
+      return None
+
+    if not response.data:
+      _write_optional_schedule_cache(cache_key, None)
+      return None
+
+    result = response.data[0]
+    _write_optional_schedule_cache(cache_key, result)
+    return result
 
   if not response.data:
     _write_optional_schedule_cache(cache_key, None)
@@ -494,13 +555,14 @@ def fetch_schedule_override(date_value: str) -> dict | None:
   return result
 
 
-def list_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
+def list_schedule_overrides(date_from: str, date_to: str, category: str | None = None) -> list[dict]:
   start_date = Date.fromisoformat(date_from)
   end_date = Date.fromisoformat(date_to)
   if start_date > end_date:
     raise ValueError("From date must be earlier than or equal to to date.")
 
-  cache_key = _schedule_cache_key("overrides", start_date.isoformat(), end_date.isoformat())
+  resolved_category = normalize_weekly_category(category)
+  cache_key = _schedule_cache_key("overrides", resolved_category, start_date.isoformat(), end_date.isoformat())
   cached_value = get_cached_value(cache_key)
   if cached_value is not None:
     return cached_value
@@ -509,14 +571,29 @@ def list_schedule_overrides(date_from: str, date_to: str) -> list[dict]:
   try:
     response = (
       supabase.table("schedule_settings")
-      .select("date,schedule_type,late_threshold")
+      .select("category,date,schedule_type,late_threshold")
+      .eq("category", resolved_category)
       .gte("date", start_date.isoformat())
       .lte("date", end_date.isoformat())
       .order("date")
       .execute()
     )
   except Exception:
-    return []
+    try:
+      response = (
+        supabase.table("schedule_settings")
+        .select("date,schedule_type,late_threshold")
+        .gte("date", start_date.isoformat())
+        .lte("date", end_date.isoformat())
+        .order("date")
+        .execute()
+      )
+    except Exception:
+      return []
+
+    result = response.data or []
+    _set_schedule_cache(cache_key, result)
+    return result
 
   result = response.data or []
   _set_schedule_cache(cache_key, result)
@@ -533,50 +610,69 @@ def resolve_schedule_context(date_value: str, category: str | None = None, fallb
 
   date_value_obj = Date.fromisoformat(date_value)
   weekly_schedule = fetch_weekly_schedule_for_day(date_value_obj.weekday(), resolved_category)
-  override = fetch_schedule_override(date_value)
+  override = fetch_schedule_override(date_value, resolved_category)
   result = _compose_schedule_context(date_value, resolved_category, fallback_schedule_type, weekly_schedule, override)
   _set_schedule_cache(cache_key, result)
   return result
 
 
-def toggle_schedule_override(date_value: str) -> dict:
+def toggle_schedule_override(date_value: str, category: str | None = None) -> dict:
+  resolved_category = normalize_weekly_category(category)
   date_value_obj = Date.fromisoformat(date_value)
-  current = fetch_schedule_override(date_value)
+  current = fetch_schedule_override(date_value, resolved_category)
   supabase = get_supabase_client()
 
   if current and normalize_schedule_type(current.get("schedule_type")) == "B":
-    response = supabase.table("schedule_settings").delete().eq("date", date_value).execute()
+    delete_query = supabase.table("schedule_settings").delete().eq("date", date_value)
+    try:
+      response = delete_query.eq("category", resolved_category).execute()
+    except Exception:
+      response = supabase.table("schedule_settings").delete().eq("date", date_value).execute()
     if response.data is None:
       raise ValueError("Failed to clear schedule override.")
 
     _invalidate_schedule_cache()
-    updated_rows = recalculate_attendance_for_date(date_value)
+    updated_rows = recalculate_attendance_for_date(date_value, resolved_category)
     return {
       "date": date_value,
+      "category": resolved_category,
       "enabled": False,
       "has_override": False,
       "updated_count": len(updated_rows)
     }
 
-  regular_preset = get_regular_schedule_preset(600)
-  late_threshold = regular_preset["late_threshold_monday"] if date_value_obj.weekday() == 0 else regular_preset["late_threshold_weekday"]
-  response = supabase.table("schedule_settings").upsert(
-    {
-      "date": date_value,
-      "schedule_type": "B",
-      "late_threshold": late_threshold,
-    },
-    on_conflict="date",
-  ).execute()
+  regular_preset = get_weekly_schedule_preset(resolved_category, 600)
+  late_threshold = _get_weekly_late_threshold(resolved_category, date_value_obj.weekday(), regular_preset)
+  values = {
+    "date": date_value,
+    "category": resolved_category,
+    "schedule_type": "B",
+    "late_threshold": late_threshold,
+  }
+  try:
+    response = supabase.table("schedule_settings").upsert(
+      values,
+      on_conflict="category,date",
+    ).execute()
+  except Exception as error:
+    if resolved_category != DEFAULT_WEEKLY_CATEGORY:
+      raise ValueError("schedule_settings table needs category support. Run supabase_schema.sql to separate regular and JO schedule overrides.") from error
+
+    legacy_values = {key: value for key, value in values.items() if key != "category"}
+    response = supabase.table("schedule_settings").upsert(
+      legacy_values,
+      on_conflict="date",
+    ).execute()
   if not response.data:
     raise ValueError("Failed to save schedule settings.")
 
   saved = response.data[0]
   _invalidate_schedule_cache()
-  updated_rows = recalculate_attendance_for_date(date_value)
+  updated_rows = recalculate_attendance_for_date(date_value, resolved_category)
 
   return {
     "date": saved["date"],
+    "category": resolved_category,
     "schedule_type": saved.get("schedule_type") or "B",
     "late_threshold": normalize_late_threshold(saved.get("late_threshold")) or late_threshold,
     "enabled": True,
@@ -589,18 +685,27 @@ def get_schedule_display_values(date_value: str, category: str | None = None, fa
   return resolve_schedule_context(date_value, category, fallback_schedule_type)
 
 
-def upsert_schedule_setting(date_value: str, schedule_type: str | None, late_threshold: str) -> dict:
-  current = fetch_schedule_override(date_value)
+def upsert_schedule_setting(date_value: str, schedule_type: str | None, late_threshold: str, category: str | None = None) -> dict:
+  resolved_category = normalize_weekly_category(category)
+  current = fetch_schedule_override(date_value, resolved_category)
   resolved_schedule_type = normalize_schedule_type(schedule_type or (current or {}).get("schedule_type")) or DEFAULT_SCHEDULE_TYPE
   resolved_late_threshold = normalize_late_threshold(late_threshold) or get_default_late_threshold(resolved_schedule_type)
 
   supabase = get_supabase_client()
   values = {
     "date": date_value,
+    "category": resolved_category,
     "schedule_type": resolved_schedule_type,
     "late_threshold": resolved_late_threshold
   }
-  response = supabase.table("schedule_settings").upsert(values, on_conflict="date").execute()
+  try:
+    response = supabase.table("schedule_settings").upsert(values, on_conflict="category,date").execute()
+  except Exception as error:
+    if resolved_category != DEFAULT_WEEKLY_CATEGORY:
+      raise ValueError("schedule_settings table needs category support. Run supabase_schema.sql to separate regular and JO schedule overrides.") from error
+
+    legacy_values = {key: value for key, value in values.items() if key != "category"}
+    response = supabase.table("schedule_settings").upsert(legacy_values, on_conflict="date").execute()
 
   if not response.data:
     raise ValueError("Failed to save schedule settings.")
@@ -664,7 +769,10 @@ def _recalculate_attendance_rows(attendance_rows: list[dict], employee_categorie
     row_category: _build_weekly_schedule_index(row_category)
     for row_category in categories_needed
   }
-  override_by_date = _build_schedule_override_index(date_values)
+  override_by_category = {
+    row_category: _build_schedule_override_index(date_values, row_category)
+    for row_category in categories_needed
+  }
 
   pending_updates: list[dict] = []
   for row, row_category, date_value, date_value_obj in target_rows:
@@ -672,7 +780,7 @@ def _recalculate_attendance_rows(attendance_rows: list[dict], employee_categorie
     if not weekly_schedule:
       weekly_schedule = _default_weekly_schedule(date_value_obj.weekday(), row_category)
 
-    context = _compose_schedule_context(date_value, row_category, row.get("schedule_type"), weekly_schedule, override_by_date.get(date_value))
+    context = _compose_schedule_context(date_value, row_category, row.get("schedule_type"), weekly_schedule, override_by_category.get(row_category, {}).get(date_value))
 
     leave_type = (row.get("leave_type") or "").strip().upper() or None
     time_in_value = row.get("time_in")
@@ -746,7 +854,7 @@ def _recalculate_attendance_rows(attendance_rows: list[dict], employee_categorie
   return updated_rows
 
 
-def recalculate_attendance_for_date(date_value: str) -> list[dict]:
+def recalculate_attendance_for_date(date_value: str, category: str | None = None) -> list[dict]:
   supabase = get_supabase_client()
   response = (
     supabase.table("attendance")
@@ -755,7 +863,7 @@ def recalculate_attendance_for_date(date_value: str) -> list[dict]:
     .execute()
   )
 
-  return _recalculate_attendance_rows(response.data or [], _load_employee_categories())
+  return _recalculate_attendance_rows(response.data or [], _load_employee_categories(), category)
 
 
 def recalculate_attendance_for_category(date_value: str, category: str) -> list[dict]:
@@ -768,6 +876,40 @@ def recalculate_attendance_for_category(date_value: str, category: str) -> list[
   )
 
   return _recalculate_attendance_rows(response.data or [], _load_employee_categories(), category)
+
+
+def calculate_attendance_snapshot(
+  date_value: str,
+  category: str | None,
+  schedule_type: str | None,
+  time_in: str | None,
+  time_out: str | None,
+  leave_type: str | None
+) -> dict:
+  resolved_category = normalize_weekly_category(category)
+  fallback_schedule_type = normalize_schedule_type(schedule_type) or category_to_schedule_type(resolved_category)
+  schedule_context = resolve_schedule_context(date_value, resolved_category, fallback_schedule_type)
+
+  normalized_leave = (leave_type or "").strip().upper() or None
+  if normalized_leave and normalized_leave != "OB":
+    late_minutes = 0
+    undertime_minutes = 0
+    overtime_minutes = 0
+  else:
+    late_minutes, undertime_minutes, overtime_minutes, _, _ = calculate_dtr_metrics(
+      schedule_context,
+      time_in,
+      time_out,
+      normalized_leave,
+      schedule_context.get("late_threshold")
+    )
+
+  return {
+    "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type,
+    "late_minutes": late_minutes,
+    "undertime_minutes": undertime_minutes,
+    "overtime_minutes": overtime_minutes,
+  }
 
 
 def recalculate_all_attendance(category: str | None = None) -> list[dict]:

@@ -95,6 +95,15 @@ def _resolve_schedule_details(schedule: str | dict | None) -> tuple[int, int, in
   return schedule_start, schedule_end, required_minutes
 
 
+def _resolve_ob_anchor(schedule: str | dict | None) -> tuple[int, str]:
+  if isinstance(schedule, dict):
+    category = str(schedule.get("category") or "").strip().lower()
+    if category == "jo":
+      return 8 * 60, "08:00"
+
+  return 7 * 60, "07:00"
+
+
 def calculate_dtr_metrics(
   schedule: str | dict,
   time_in: str | None,
@@ -106,26 +115,27 @@ def calculate_dtr_metrics(
   normalized_out = normalize_time_token(time_out)
   normalized_leave = (leave_type or "").upper() or None
   schedule_start_minutes, schedule_end_minutes, required_minutes = _resolve_schedule_details(schedule)
-  ob_time_in_minutes = 7 * 60
-  ob_time_in_token = "07:00"
+  record_floor_minutes, record_floor_token = _resolve_ob_anchor(schedule)
 
   if normalized_leave == "OB" or normalized_in == "OB" or normalized_out == "OB":
-    schedule_end_token = f"{schedule_end_minutes // 60:02d}:{schedule_end_minutes % 60:02d}"
-
     if normalized_out is None:
-      return 0, 0, 0, ob_time_in_token, None
+      if normalized_in in {None, "OB"}:
+        return 0, 0, 0, record_floor_token, None
+
+      return 0, 0, 0, normalized_in, None
 
     is_ob_time_in = normalized_in in {None, "OB"}
-    effective_time_in_token = ob_time_in_token if is_ob_time_in else normalized_in
-    effective_time_in_minutes = ob_time_in_minutes if is_ob_time_in else to_minutes(normalized_in)
+    effective_time_in_token = record_floor_token if is_ob_time_in else normalized_in
+    effective_time_in_minutes = record_floor_minutes if is_ob_time_in else to_minutes(normalized_in)
+    if effective_time_in_minutes is None:
+      return 0, 0, 0, effective_time_in_token, None
+
+    effective_time_in_minutes = max(effective_time_in_minutes, record_floor_minutes)
 
     is_ob_time_out = normalized_out == "OB"
     time_out_minutes = schedule_end_minutes if is_ob_time_out else to_minutes(normalized_out)
     if time_out_minutes is None:
-      return 0, 0, 0, ob_time_in_token, None
-
-    if effective_time_in_minutes is None:
-      return 0, 0, 0, ob_time_in_token, None
+      return 0, 0, 0, effective_time_in_token, None
 
     worked_minutes = _elapsed_minutes_excluding_lunch(effective_time_in_minutes, time_out_minutes)
     undertime_minutes = max(required_minutes - worked_minutes, 0)
@@ -145,6 +155,9 @@ def calculate_dtr_metrics(
   late_threshold_minutes = to_minutes(late_threshold)
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start
+
+  if time_in_minutes is not None:
+    time_in_minutes = max(time_in_minutes, record_floor_minutes)
 
   late_minutes = _elapsed_minutes_excluding_lunch(late_threshold_minutes, time_in_minutes)
 

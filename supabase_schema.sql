@@ -19,6 +19,7 @@
 
   create table if not exists schedule_settings (
     id bigserial primary key,
+    category text not null default 'regular',
     date date not null unique,
     schedule_type text not null default 'A' check (schedule_type in ('A', 'B')),
     late_threshold time not null default '08:00',
@@ -26,7 +27,17 @@
   );
 
   alter table if exists schedule_settings
+    add column if not exists category text not null default 'regular';
+
+  alter table if exists schedule_settings
     add column if not exists schedule_type text not null default 'A';
+
+  alter table if exists schedule_settings
+    drop constraint if exists schedule_settings_date_key;
+
+  drop index if exists schedule_settings_date_key;
+
+  create unique index if not exists schedule_settings_category_date_uq on schedule_settings (category, date);
 
   create table if not exists weekly_schedule_settings (
     id bigserial primary key,

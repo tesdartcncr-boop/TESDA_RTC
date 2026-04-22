@@ -15,6 +15,10 @@ function getAttendanceLeaveCode(attendance) {
   return normalizeToken(attendance?.leave_type) || (isLeaveCode(attendance?.time_in) ? normalizeToken(attendance.time_in) : "") || (isLeaveCode(attendance?.time_out) ? normalizeToken(attendance.time_out) : "");
 }
 
+function getObAnchorTime(attendance) {
+  return String(attendance?.category || "").trim().toLowerCase() === "jo" ? "8:00 AM" : "7:00 AM";
+}
+
 function getClockCopy(attendance, leaveType) {
   const recordedLeaveCode = getAttendanceLeaveCode(attendance);
   const normalizedLeaveType = normalizeToken(leaveType);
@@ -33,10 +37,11 @@ function getClockCopy(attendance, leaveType) {
 
   if (hasTimeIn && !hasTimeOut) {
     if (recordedLeaveCode === "OB") {
+      const obAnchorTime = getObAnchorTime(attendance);
       return {
         isComplete: false,
         title: "Record Time Out",
-        description: "OB time-in is counted from 7:00 AM. Leave the leave type as OB to close it as a full OB day, or switch Leave type to None to clock out normally."
+        description: `OB time-in is counted from ${obAnchorTime}. Leave the leave type as OB to close it as a full OB day, or switch Leave type to None to clock out normally.`
       };
     }
 
@@ -105,9 +110,10 @@ function getRosterCardCopy(attendance) {
   }
 
   if (leaveType) {
+    const obAnchorTime = getObAnchorTime(attendance);
     return {
       badge: leaveType,
-      note: leaveType === "OB" && hasTimeIn && !hasTimeOut ? "OB counts from 7:00 AM until Time Out is saved" : "Leave tagged for this date",
+      note: leaveType === "OB" && hasTimeIn && !hasTimeOut ? `OB counts from ${obAnchorTime} until Time Out is saved` : "Leave tagged for this date",
       tone: "is-leave",
       timeIn: formatRosterTime("time_in"),
       timeOut: formatRosterTime("time_out")

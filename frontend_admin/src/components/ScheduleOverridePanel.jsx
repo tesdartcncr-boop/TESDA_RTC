@@ -74,6 +74,11 @@ export default function ScheduleOverridePanel({
   useEffect(() => {
     function handleScheduleInvalidate(event) {
       const payloadDate = event?.detail?.payload?.date || event?.detail?.date || "";
+      const payloadCategory = event?.detail?.payload?.category || event?.detail?.category || "";
+      if (payloadCategory && payloadCategory !== category) {
+        return;
+      }
+
       if (!payloadDate || payloadDate === date) {
         loadSchedule(date);
       }
@@ -110,6 +115,7 @@ export default function ScheduleOverridePanel({
     try {
       const data = await api.setScheduleSettings({
         date,
+        category,
         schedule_type: scheduleType,
         late_threshold: lateThreshold
       });
