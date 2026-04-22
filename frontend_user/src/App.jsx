@@ -498,7 +498,7 @@ export default function App() {
     return (
       <>
         <LoginScreen
-          portalName="DTR Automation User Portal"
+          portalName="TESDA MPLTP User Portal"
           description="Checking your session before opening the attendance dashboard."
           errorMessage="Checking your session..."
         />
@@ -511,7 +511,7 @@ export default function App() {
     return (
       <>
         <LoginScreen
-          portalName="DTR Automation User Portal"
+          portalName="TESDA MPLTP User Portal"
           description="Use an approved TESDA email to request an OTP and open the user portal."
           errorMessage={authMessage}
           onAuthenticated={(nextSession) => {
@@ -531,7 +531,7 @@ export default function App() {
         <header className="user-topbar">
           <div className="user-topbar__copy">
             <p className="section-kicker">Attendance dashboard</p>
-            <h1>DTR Automation User Portal</h1>
+            <h1>TESDA MPLTP User Portal</h1>
           </div>
           <button type="button" className="secondary-btn" onClick={handleSignOut}>
             Sign out
@@ -578,6 +578,7 @@ export default function App() {
           attendanceByEmployeeId={attendanceByEmployeeId}
           onClock={handleClock}
           isLoading={isDashboardLoading}
+          category={activeCategory}
           emptyMessage={employeeSearch.trim() ? "No employees match your search." : "No employees found for this category."}
         />
 

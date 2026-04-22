@@ -19,6 +19,10 @@ function getObAnchorTime(attendance) {
   return String(attendance?.category || "").trim().toLowerCase() === "jo" ? "8:00 AM" : "7:00 AM";
 }
 
+function getCategoryBadgeLabel(category) {
+  return String(category || "").trim().toLowerCase() === "jo" ? "Job Order" : "Regular";
+}
+
 function getClockCopy(attendance, leaveType) {
   const recordedLeaveCode = getAttendanceLeaveCode(attendance);
   const normalizedLeaveType = normalizeToken(leaveType);
@@ -148,7 +152,7 @@ function EyeIcon() {
   );
 }
 
-export default function EmployeeGrid({ employees, attendanceByEmployeeId = new Map(), onClock, isLoading = false, emptyMessage = "No employees found for this category." }) {
+export default function EmployeeGrid({ employees, attendanceByEmployeeId = new Map(), onClock, isLoading = false, emptyMessage = "No employees found for this category.", category = "regular" }) {
   const [activeEmployeeId, setActiveEmployeeId] = useState(null);
   const [password, setPassword] = useState("");
   const [leaveType, setLeaveType] = useState("");
@@ -162,6 +166,7 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
   );
   const activeAttendance = activeEmployee ? attendanceByEmployeeId.get(activeEmployee.id) : null;
   const clockCopy = getClockCopy(activeAttendance, leaveType);
+  const categoryBadgeLabel = getCategoryBadgeLabel(category);
   const modalRoot = typeof document === "undefined" ? null : document.body;
 
   useEffect(() => {
@@ -269,7 +274,10 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
               disabled={isCompleted}
             >
               <span className="employee-card__copy">
-                <span className="employee-badge">{cardCopy.badge}</span>
+                <span className="employee-card__badges">
+                  <span className="employee-badge">{cardCopy.badge}</span>
+                  <span className="employee-badge employee-badge--category">{categoryBadgeLabel}</span>
+                </span>
                 <span className="employee-name">{employee.name}</span>
                 <span className="employee-card__note">{cardCopy.note}</span>
                 <span className="employee-card__times" aria-label={`Time in and time out for ${employee.name}`}>
