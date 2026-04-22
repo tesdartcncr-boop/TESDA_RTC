@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import ScheduleOverridePanel from "../components/ScheduleOverridePanel";
 import { api } from "../services/api";
 
@@ -407,6 +408,460 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
   );
 }
 
+function MasterSheetDateEditorModal({
+  date,
+  category,
+  categoryLabel,
+  employees,
+  recordsByKey,
+  draftsByKey,
+  updateDraft,
+  saveDraft,
+  onClose
+}) {
+  const [activeTab, setActiveTab] = useState("attendance");
+  const autoSaveTimersRef = useRef(new Map());
+  const saveDraftRef = useRef(saveDraft);
+  const dateLabel = formatDisplayDate(date);
+
+  const attendanceRows = useMemo(() => {
+    return (employees || []).map((employee) => {
+      const key = buildRecordKey(employee.id, date);
+      const record = recordsByKey[key];
+      const draft = draftsByKey?.[key] || createDraft(record, employee.id, date);
+
+      return {
+        key,
+        employee,
+        record,
+        draft
+      };
+    });
+  }, [date, draftsByKey, employees, recordsByKey]);
+
+  useEffect(() => {
+    saveDraftRef.current = saveDraft;
+  }, [saveDraft]);
+
+  useEffect(() => {
+    function handleEscape(event) {
+      if (event.key === "Escape" && typeof onClose === "function") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      autoSaveTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      autoSaveTimersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    attendanceRows.forEach(({ key, employee, draft, record }) => {
+      const draftTimeIn = (draft.time_in || "").trim();
+      const draftTimeOut = (draft.time_out || "").trim();
+      const recordTimeIn = (getDisplayValue(record, "time_in") || "").trim();
+      const recordTimeOut = (getDisplayValue(record, "time_out") || "").trim();
+      const isDirty = draftTimeIn !== recordTimeIn || draftTimeOut !== recordTimeOut;
+      const existingTimer = autoSaveTimersRef.current.get(key);
+
+      if (!isDirty) {
+        if (existingTimer) {
+          window.clearTimeout(existingTimer);
+          autoSaveTimersRef.current.delete(key);
+        }
+
+        return;
+      }
+
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        autoSaveTimersRef.current.delete(key);
+        saveDraftRef.current(employee.id, date, { silent: true });
+      }, 650);
+
+      autoSaveTimersRef.current.set(key, timeoutId);
+    });
+  }, [attendanceRows, date]);
+
+  function flushAutoSave(employeeId) {
+    const key = buildRecordKey(employeeId, date);
+    const existingTimer = autoSaveTimersRef.current.get(key);
+
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+      autoSaveTimersRef.current.delete(key);
+    }
+
+    saveDraftRef.current(employeeId, date, { silent: true });
+  }
+
+  function handleClose() {
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  }
+
+  const panel = (
+    <section className="card master-sheet-date-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="master-sheet-date-modal-title">
+      <header className="master-sheet-date-modal__header">
+        <div className="master-sheet-date-modal__heading">
+          <p className="section-kicker">{categoryLabel} master sheet</p>
+          <h3 id="master-sheet-date-modal-title">{dateLabel}</h3>
+          <p className="subtle">Attendance edits auto-save after a short pause.</p>
+        </div>
+
+        <div className="master-sheet-date-modal__header-actions">
+          <div className="tab-cluster" role="tablist" aria-label="Date editor tabs">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "attendance"}
+              className={activeTab === "attendance" ? "mini-tab active" : "mini-tab"}
+              onClick={() => setActiveTab("attendance")}
+            >
+              Attendance
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "schedule"}
+              className={activeTab === "schedule" ? "mini-tab active" : "mini-tab"}
+              onClick={() => setActiveTab("schedule")}
+            >
+              Day Rule
+            </button>
+          </div>
+
+          <button type="button" className="secondary-btn master-sheet-date-modal__close" onClick={handleClose}>
+            Close
+          </button>
+        </div>
+      </header>
+
+      <div className="master-sheet-date-modal__body">
+        {activeTab === "attendance" ? (
+          <section className="master-sheet-date-modal__attendance">
+            <p className="subtle master-sheet-date-modal__hint">
+              Names listed below come from the current category roster. Enter a time or leave code and the cell will save automatically.
+            </p>
+
+            {attendanceRows.length ? (
+              <div className="master-sheet-date-modal__table-shell">
+                <table className="master-sheet-date-modal__table">
+                  <colgroup>
+                    <col className="master-sheet-date-modal__employee-col" />
+                    <col className="master-sheet-date-modal__time-col" />
+                    <col className="master-sheet-date-modal__time-col" />
+                  </colgroup>
+                  <thead>
+                    <tr>
+                      <th>EMPLOYEE</th>
+                      <th>TIME IN</th>
+                      <th>TIME OUT</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {attendanceRows.map(({ key, employee, draft }) => {
+                      const employeeName = formatPlaceholder(employee.display_name || employee.name || employee.surname || "", "Unknown Employee");
+                      const employeeHint = formatPlaceholder(employee.surname || employee.name || "", "");
+
+                      return (
+                        <tr key={key}>
+                          <td className="master-sheet-date-modal__employee-cell">
+                            <strong>{employeeName}</strong>
+                            {employeeHint && employeeHint !== employeeName ? <span>{employeeHint}</span> : null}
+                          </td>
+                          <td>
+                            <input
+                              className="master-sheet-input master-sheet-date-modal__input"
+                              type="text"
+                              value={draft.time_in}
+                              spellCheck={false}
+                              autoComplete="off"
+                              placeholder="08:00 or SL"
+                              onChange={(event) => updateDraft(employee.id, date, "time_in", event.target.value)}
+                              onBlur={() => flushAutoSave(employee.id)}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="master-sheet-input master-sheet-date-modal__input"
+                              type="text"
+                              value={draft.time_out}
+                              spellCheck={false}
+                              autoComplete="off"
+                              placeholder="17:00 or VL"
+                              onChange={(event) => updateDraft(employee.id, date, "time_out", event.target.value)}
+                              onBlur={() => flushAutoSave(employee.id)}
+                            />
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <p className="subtle master-sheet-date-modal__empty">No employees are available for this category yet.</p>
+            )}
+          </section>
+        ) : (
+          <section className="master-sheet-date-modal__schedule">
+            <ScheduleOverridePanel
+              title="Day Rule"
+              description={`Editing ${dateLabel}. Saving updates the schedule for this date.`}
+              saveLabel="Save Day Rule"
+              initialDate={date}
+              category={category}
+              showDateField={false}
+            />
+          </section>
+        )}
+      </div>
+    </section>
+  );
+
+  if (typeof document === "undefined" || !document.body) {
+    return panel;
+  }
+
+  return createPortal(
+    <div className="schedule-override-modal master-sheet-date-modal" role="presentation" onClick={handleClose}>
+      <div className="master-sheet-modal__surface" role="presentation" onClick={(event) => event.stopPropagation()}>
+        {panel}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+function MasterSheetEmployeeEditorModal({
+  employee,
+  categoryLabel,
+  periodLabel,
+  dates,
+  recordsByKey,
+  draftsByKey,
+  updateDraft,
+  saveDraft,
+  onClose
+}) {
+  const activeTab = "monthly";
+  const autoSaveTimersRef = useRef(new Map());
+  const saveDraftRef = useRef(saveDraft);
+  const employeeName = formatPlaceholder(employee.display_name || employee.name || employee.surname || "", "Unknown Employee");
+  const employeeLabel = formatPlaceholder(employee.surname || employee.name || "", "Monthly time record");
+
+  const monthlyRows = useMemo(() => {
+    return (dates || []).map((dateInfo) => {
+      const key = buildRecordKey(employee.id, dateInfo.date);
+      const record = recordsByKey[key];
+      const draft = draftsByKey?.[key] || createDraft(record, employee.id, dateInfo.date);
+
+      return {
+        key,
+        date: dateInfo.date,
+        label: dateInfo.label,
+        weekday: dateInfo.weekday || "",
+        is_weekend: Boolean(dateInfo.is_weekend),
+        is_monday: Boolean(dateInfo.is_monday),
+        record,
+        draft
+      };
+    });
+  }, [dates, draftsByKey, employee.id, recordsByKey]);
+
+  useEffect(() => {
+    saveDraftRef.current = saveDraft;
+  }, [saveDraft]);
+
+  useEffect(() => {
+    function handleEscape(event) {
+      if (event.key === "Escape" && typeof onClose === "function") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
+  useEffect(() => {
+    return () => {
+      autoSaveTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      autoSaveTimersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    monthlyRows.forEach((row) => {
+      const draftTimeIn = (row.draft.time_in || "").trim();
+      const draftTimeOut = (row.draft.time_out || "").trim();
+      const recordTimeIn = (getDisplayValue(row.record, "time_in") || "").trim();
+      const recordTimeOut = (getDisplayValue(row.record, "time_out") || "").trim();
+      const isDirty = draftTimeIn !== recordTimeIn || draftTimeOut !== recordTimeOut;
+      const existingTimer = autoSaveTimersRef.current.get(row.key);
+
+      if (!isDirty) {
+        if (existingTimer) {
+          window.clearTimeout(existingTimer);
+          autoSaveTimersRef.current.delete(row.key);
+        }
+
+        return;
+      }
+
+      if (existingTimer) {
+        window.clearTimeout(existingTimer);
+      }
+
+      const timeoutId = window.setTimeout(() => {
+        autoSaveTimersRef.current.delete(row.key);
+        saveDraftRef.current(employee.id, row.date, { silent: true });
+      }, 650);
+
+      autoSaveTimersRef.current.set(row.key, timeoutId);
+    });
+  }, [employee.id, monthlyRows]);
+
+  function flushAutoSave(date) {
+    const key = buildRecordKey(employee.id, date);
+    const existingTimer = autoSaveTimersRef.current.get(key);
+
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+      autoSaveTimersRef.current.delete(key);
+    }
+
+    saveDraftRef.current(employee.id, date, { silent: true });
+  }
+
+  function handleClose() {
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  }
+
+  const panel = (
+    <section className="card master-sheet-date-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="master-sheet-employee-modal-title">
+      <header className="master-sheet-date-modal__header">
+        <div className="master-sheet-date-modal__heading">
+          <p className="section-kicker">{categoryLabel} monthly record</p>
+          <h3 id="master-sheet-employee-modal-title">{employeeName}</h3>
+          <p className="subtle">{employeeLabel}</p>
+          <p className="subtle">Period: {periodLabel}</p>
+          <p className="subtle">Edit the monthly time in/out. Changes auto-save after a short pause.</p>
+        </div>
+
+        <div className="master-sheet-date-modal__header-actions">
+          <div className="status-pill status-pill--live">{activeTab === "monthly" ? "Editing month" : "Monthly view"}</div>
+          <button type="button" className="secondary-btn master-sheet-date-modal__close" onClick={handleClose}>
+            Close
+          </button>
+        </div>
+      </header>
+
+      <div className="master-sheet-date-modal__body">
+        <section className="master-sheet-date-modal__attendance">
+          <p className="subtle master-sheet-date-modal__hint">
+            Click into any row, type the new time, then pause or leave the field to save automatically.
+          </p>
+
+          {monthlyRows.length ? (
+            <div className="master-sheet-date-modal__table-shell">
+              <table className="master-sheet-date-modal__table master-sheet-employee-modal__table">
+                <colgroup>
+                  <col className="master-sheet-employee-modal__date-col" />
+                  <col className="master-sheet-employee-modal__day-col" />
+                  <col className="master-sheet-date-modal__time-col" />
+                  <col className="master-sheet-date-modal__time-col" />
+                </colgroup>
+                <thead>
+                  <tr>
+                    <th>DATE</th>
+                    <th>DAY</th>
+                    <th>TIME IN</th>
+                    <th>TIME OUT</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {monthlyRows.map((row) => {
+                    const dateClass = row.is_weekend
+                      ? "master-sheet-surname-sheet__date--weekend"
+                      : row.is_monday
+                        ? "master-sheet-surname-sheet__date--monday"
+                        : "";
+                    const dayClass = row.is_weekend
+                      ? "master-sheet-surname-sheet__day--weekend"
+                      : row.is_monday
+                        ? "master-sheet-surname-sheet__day--monday"
+                        : "";
+
+                    return (
+                      <tr key={row.key}>
+                        <td className={dateClass}>{row.label}</td>
+                        <td className={dayClass}>{row.weekday}</td>
+                        <td>
+                          <input
+                            className="master-sheet-input master-sheet-date-modal__input"
+                            type="text"
+                            value={row.draft.time_in}
+                            spellCheck={false}
+                            autoComplete="off"
+                            placeholder="08:00 or SL"
+                            onChange={(event) => updateDraft(employee.id, row.date, "time_in", event.target.value)}
+                            onBlur={() => flushAutoSave(row.date)}
+                          />
+                        </td>
+                        <td>
+                          <input
+                            className="master-sheet-input master-sheet-date-modal__input"
+                            type="text"
+                            value={row.draft.time_out}
+                            spellCheck={false}
+                            autoComplete="off"
+                            placeholder="17:00 or VL"
+                            onChange={(event) => updateDraft(employee.id, row.date, "time_out", event.target.value)}
+                            onBlur={() => flushAutoSave(row.date)}
+                          />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="subtle master-sheet-date-modal__empty">No dates are available for this month yet.</p>
+          )}
+        </section>
+      </div>
+    </section>
+  );
+
+  if (typeof document === "undefined" || !document.body) {
+    return panel;
+  }
+
+  return createPortal(
+    <div className="schedule-override-modal master-sheet-date-modal" role="presentation" onClick={handleClose}>
+      <div className="master-sheet-modal__surface" role="presentation" onClick={(event) => event.stopPropagation()}>
+        {panel}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, sheetState, setSheetState }) {
   const categoryLabel = getCategoryLabel(category);
   const currentRangeKey = `${dateRange.date_from}:${dateRange.date_to}`;
@@ -415,7 +870,9 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
   const isLoadingSheet = sheetState.status.startsWith("Loading");
   const [sheetView, setSheetView] = useState("master");
   const [selectedSurnameEmployeeId, setSelectedSurnameEmployeeId] = useState(null);
-  const [scheduleEditorDate, setScheduleEditorDate] = useState(null);
+  const [selectedDateEditor, setSelectedDateEditor] = useState(null);
+  const [selectedEmployeeEditorId, setSelectedEmployeeEditorId] = useState(null);
+  const draftVersionRef = useRef(new Map());
 
   const recordsByKey = useMemo(() => {
     return Object.fromEntries((sheetState.records || []).map((record) => [buildRecordKey(record.employee_id, record.date), record]));
@@ -438,6 +895,14 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     return sheetState.employees.find((employee) => employee.id === selectedSurnameEmployeeId) || sheetState.employees[0];
   }, [selectedSurnameEmployeeId, sheetState.employees]);
 
+  const selectedEmployeeEditor = useMemo(() => {
+    if (!selectedEmployeeEditorId) {
+      return null;
+    }
+
+    return sheetState.employees.find((employee) => employee.id === selectedEmployeeEditorId) || null;
+  }, [selectedEmployeeEditorId, sheetState.employees]);
+
   useEffect(() => {
     if (!sheetState.employees.length) {
       setSelectedSurnameEmployeeId(null);
@@ -448,6 +913,16 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
       setSelectedSurnameEmployeeId(sheetState.employees[0].id);
     }
   }, [selectedSurnameEmployeeId, sheetState.employees]);
+
+  useEffect(() => {
+    if (!selectedEmployeeEditorId) {
+      return;
+    }
+
+    if (!sheetState.employees.some((employee) => employee.id === selectedEmployeeEditorId)) {
+      setSelectedEmployeeEditorId(null);
+    }
+  }, [selectedEmployeeEditorId, sheetState.employees]);
 
   useEffect(() => {
     let mounted = true;
@@ -500,6 +975,8 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     const key = buildRecordKey(employeeId, date);
     const record = recordsByKey[key];
 
+    draftVersionRef.current.set(key, (draftVersionRef.current.get(key) || 0) + 1);
+
     updateCategorySheetState(setSheetState, category, (current) => {
       const draftsByKey = current.draftsByKey || {};
       const currentDraft = draftsByKey[key] || createDraft(record, employeeId, date);
@@ -516,12 +993,15 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     });
   }
 
-  async function saveDraft(employeeId, date) {
+  async function saveDraft(employeeId, date, options = {}) {
+    const { silent = false } = options;
     const key = buildRecordKey(employeeId, date);
     const draft = sheetState.draftsByKey?.[key];
     if (!draft) {
       return;
     }
+
+    const requestVersion = draftVersionRef.current.get(key) || 0;
 
     const timeIn = (draft.time_in || "").trim();
     const timeOut = (draft.time_out || "").trim();
@@ -536,12 +1016,15 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
           draftsByKey: nextDrafts
         };
       });
+      draftVersionRef.current.delete(key);
       return;
     }
 
-    updateCategorySheetState(setSheetState, category, {
-      status: "Saving master sheet..."
-    });
+    if (!silent) {
+      updateCategorySheetState(setSheetState, category, {
+        status: "Saving master sheet..."
+      });
+    }
 
     try {
       const updated = await api.saveMasterSheetRecord({
@@ -552,10 +1035,12 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
         schedule_type: draft.schedule_type || existingRecord?.schedule_type || "A"
       });
 
+      const isCurrentDraft = (draftVersionRef.current.get(key) || 0) === requestVersion;
+
       updateCategorySheetState(setSheetState, category, (current) => {
         const nextRecords = (current.records || []).filter((record) => record.id !== updated.id);
 
-        return {
+        const nextState = {
           records: [...nextRecords, updated].sort((left, right) => {
             if (left.date !== right.date) {
               return left.date.localeCompare(right.date);
@@ -564,22 +1049,26 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
             return String(left.employee_name || "").localeCompare(String(right.employee_name || ""));
           })
         };
+
+        if (!isCurrentDraft) {
+          return nextState;
+        }
+
+        const nextDrafts = { ...(current.draftsByKey || {}) };
+        delete nextDrafts[key];
+        draftVersionRef.current.delete(key);
+
+        return {
+          ...nextState,
+          draftsByKey: nextDrafts,
+          status: silent ? current.status : "Attendance record saved"
+        };
       });
 
       api.clearMasterSheetCache({
         date_from: dateRange.date_from,
         date_to: dateRange.date_to,
         category
-      });
-
-      updateCategorySheetState(setSheetState, category, (current) => {
-        const nextDrafts = { ...(current.draftsByKey || {}) };
-        delete nextDrafts[key];
-
-        return {
-          draftsByKey: nextDrafts,
-          status: "Attendance record saved"
-        };
       });
     } catch (error) {
       updateCategorySheetState(setSheetState, category, {
@@ -611,12 +1100,22 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     }
   }
 
-  function openScheduleEditor(date) {
-    setScheduleEditorDate(date);
+  function openDateEditor(date) {
+    setSelectedEmployeeEditorId(null);
+    setSelectedDateEditor(date);
   }
 
-  function closeScheduleEditor() {
-    setScheduleEditorDate(null);
+  function closeDateEditor() {
+    setSelectedDateEditor(null);
+  }
+
+  function openEmployeeEditor(employeeId) {
+    setSelectedDateEditor(null);
+    setSelectedEmployeeEditorId(employeeId);
+  }
+
+  function closeEmployeeEditor() {
+    setSelectedEmployeeEditorId(null);
   }
 
   return (
@@ -630,7 +1129,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
             Range: {formatDisplayDate(dateRange.date_from)} to {formatDisplayDate(dateRange.date_to)}
           </p>
           <p className="subtle">Status: {sheetState.status}</p>
-          <p className="subtle">Click a date to edit that day's schedule and late threshold.</p>
+          <p className="subtle">Click a date to edit that day's attendance rows, or click a surname to edit that employee's monthly times.</p>
         </div>
         <button type="button" onClick={exportExcel}>Export Excel</button>
       </header>
@@ -654,7 +1153,15 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
                 <th rowSpan="2" className="master-sheet-day-col">DAY</th>
                 {sheetState.employees.map((employee) => (
                   <th key={employee.id} colSpan="2" className="master-sheet-employee-col">
-                    {(employee.surname || employee.name || "").toUpperCase()}
+                    <button
+                      type="button"
+                      className="master-sheet-employee-button"
+                      onClick={() => openEmployeeEditor(employee.id)}
+                      aria-label={`Edit monthly times for ${(employee.surname || employee.name || "").trim() || "employee"}`}
+                      title="Click to edit monthly time entries"
+                    >
+                      {(employee.surname || employee.name || "").toUpperCase()}
+                    </button>
                   </th>
                 ))}
               </tr>
@@ -674,9 +1181,9 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
                     <button
                       type="button"
                       className="master-sheet-date-button"
-                      onClick={() => openScheduleEditor(dateInfo.date)}
-                      aria-label={`Edit schedule and late settings for ${formatDisplayDate(dateInfo.date)}`}
-                      title="Click to edit schedule and late settings"
+                      onClick={() => openDateEditor(dateInfo.date)}
+                      aria-label={`Edit attendance and day rule for ${formatDisplayDate(dateInfo.date)}`}
+                      title="Click to edit attendance and day rule"
                     >
                       {dateInfo.label}
                     </button>
@@ -752,15 +1259,33 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
         </section>
       )}
 
-      {scheduleEditorDate ? (
-        <ScheduleOverridePanel
-          isModal
-          initialDate={scheduleEditorDate}
-          category={activeCategory}
-          title="Change Schedule"
-          description={`Editing ${formatDisplayDate(scheduleEditorDate)}. Saving recalculates every employee on that date.`}
-          saveLabel="Save Changes"
-          onClose={closeScheduleEditor}
+      {selectedDateEditor ? (
+        <MasterSheetDateEditorModal
+          key={`${category}:${selectedDateEditor}`}
+          date={selectedDateEditor}
+          category={category}
+          categoryLabel={categoryLabel}
+          employees={sheetState.employees || []}
+          recordsByKey={recordsByKey}
+          draftsByKey={sheetState.draftsByKey || {}}
+          updateDraft={updateDraft}
+          saveDraft={saveDraft}
+          onClose={closeDateEditor}
+        />
+      ) : null}
+
+      {selectedEmployeeEditor ? (
+        <MasterSheetEmployeeEditorModal
+          key={`${category}:${month}:${selectedEmployeeEditor.id}`}
+          employee={selectedEmployeeEditor}
+          categoryLabel={categoryLabel}
+          periodLabel={periodLabel}
+          dates={sheetState.dates || []}
+          recordsByKey={recordsByKey}
+          draftsByKey={sheetState.draftsByKey || {}}
+          updateDraft={updateDraft}
+          saveDraft={saveDraft}
+          onClose={closeEmployeeEditor}
         />
       ) : null}
 

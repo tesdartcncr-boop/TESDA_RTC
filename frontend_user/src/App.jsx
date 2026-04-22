@@ -440,7 +440,22 @@ export default function App() {
       return employees;
     }
 
-    return employees.filter((employee) => (employee.name || "").toLowerCase().includes(query));
+    return employees.filter((employee) => {
+      const searchableText = [
+        employee.name,
+        employee.display_name,
+        employee.surname,
+        employee.first_name,
+        employee.second_name,
+        employee.last_name,
+        employee.extension
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+
+      return searchableText.includes(query);
+    });
   }, [employeeSearch, employees]);
 
   const activeCategoryTitle = getCategoryTitle(activeCategory);
@@ -533,7 +548,11 @@ export default function App() {
                 type="search"
                 placeholder="Type a name to filter the roster"
                 value={employeeSearchDraft}
-                onChange={(event) => setEmployeeSearchDraft(event.target.value)}
+                onChange={(event) => {
+                  const nextValue = event.target.value;
+                  setEmployeeSearchDraft(nextValue);
+                  setEmployeeSearch(nextValue);
+                }}
               />
             </label>
 

@@ -361,19 +361,13 @@ button.danger {
 }
 
 .master-sheet-date-col {
-  position: sticky;
-  left: 0;
   width: var(--master-sheet-date-width);
   min-width: var(--master-sheet-date-width);
-  z-index: 3;
 }
 
 .master-sheet-day-col {
-  position: sticky;
-  left: var(--master-sheet-date-width);
   width: var(--master-sheet-day-width);
   min-width: var(--master-sheet-day-width);
-  z-index: 3;
 }
 
 .master-sheet-table thead .master-sheet-date-col {
@@ -435,6 +429,29 @@ button.danger {
 
 .master-sheet-date-button:hover,
 .master-sheet-date-button:focus-visible {
+  color: var(--accent-strong);
+  text-decoration-color: currentColor;
+  outline: none;
+}
+
+.master-sheet-employee-button {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-radius: 0;
+  padding: 0.12rem 0.18rem;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+  text-decoration: underline dotted transparent;
+  text-underline-offset: 0.14em;
+}
+
+.master-sheet-employee-button:hover,
+.master-sheet-employee-button:focus-visible {
   color: var(--accent-strong);
   text-decoration-color: currentColor;
   outline: none;
@@ -755,11 +772,19 @@ button.danger {
   position: fixed;
   inset: 0;
   z-index: 9999;
-  display: grid;
-  place-items: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1rem;
   background: rgba(8, 18, 20, 0.58);
   backdrop-filter: blur(10px);
+}
+
+.master-sheet-modal__surface {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  min-height: 100%;
 }
 
 .schedule-override-card--modal {
@@ -789,6 +814,158 @@ button.danger {
 
 .schedule-override-card__toolbar label {
   flex: 1 1 170px;
+}
+
+.master-sheet-date-modal__dialog {
+  width: min(980px, 100%);
+  max-height: calc(100vh - 1.5rem);
+  padding: 0.85rem;
+  overflow: hidden;
+  border: 1px solid rgba(15, 107, 107, 0.18);
+  border-radius: 20px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.99), rgba(241, 248, 249, 0.98));
+  box-shadow: 0 30px 60px rgba(6, 14, 16, 0.28);
+  animation: schedule-modal-enter 160ms ease-out;
+}
+
+.master-sheet-date-modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.master-sheet-date-modal__heading {
+  display: grid;
+  gap: 0.15rem;
+  max-width: 40rem;
+}
+
+.master-sheet-date-modal__header-actions {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.master-sheet-date-modal__close {
+  white-space: nowrap;
+}
+
+.master-sheet-date-modal__body {
+  display: grid;
+  gap: 0.65rem;
+  min-height: 0;
+}
+
+.master-sheet-date-modal__attendance,
+.master-sheet-date-modal__schedule {
+  display: grid;
+  gap: 0.6rem;
+  min-height: 0;
+}
+
+.master-sheet-date-modal__hint,
+.master-sheet-date-modal__empty {
+  margin: 0;
+}
+
+.master-sheet-date-modal__table-shell {
+  overflow: auto;
+  max-height: calc(100vh - 14rem);
+  border: 1px solid rgba(15, 107, 107, 0.14);
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.master-sheet-date-modal__table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+.master-sheet-employee-modal__table {
+  table-layout: fixed;
+}
+
+.master-sheet-date-modal__table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 0.55rem 0.7rem;
+  border-bottom: 1px solid rgba(15, 107, 107, 0.14);
+  background: linear-gradient(180deg, rgba(236, 246, 231, 0.98), rgba(221, 238, 217, 0.98));
+  color: var(--ink);
+  font-size: 0.7rem;
+  letter-spacing: 0.03em;
+  text-align: left;
+}
+
+.master-sheet-date-modal__table td {
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid rgba(15, 107, 107, 0.08);
+  vertical-align: top;
+}
+
+.master-sheet-date-modal__employee-cell {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.master-sheet-date-modal__employee-cell strong {
+  font-size: 0.84rem;
+}
+
+.master-sheet-date-modal__employee-cell span {
+  color: var(--muted);
+  font-size: 0.68rem;
+}
+
+.master-sheet-employee-modal__date-col {
+  width: 5.75rem;
+  min-width: 5.75rem;
+}
+
+.master-sheet-employee-modal__day-col {
+  width: 7rem;
+  min-width: 7rem;
+}
+
+.master-sheet-date-modal__input {
+  min-width: 0;
+  height: 2rem;
+  padding-top: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.master-sheet-date-modal__empty {
+  padding: 0.8rem 0.9rem;
+  border: 1px dashed rgba(15, 107, 107, 0.22);
+  border-radius: 14px;
+  background: rgba(15, 107, 107, 0.04);
+}
+
+.master-sheet-date-modal__schedule {
+  overflow: auto;
+  max-height: calc(100vh - 14rem);
+  padding-right: 0.1rem;
+}
+
+.master-sheet-date-modal .schedule-override-card {
+  min-width: 0;
+  padding: 0.75rem;
+  gap: 0.55rem;
+}
+
+.master-sheet-date-modal .schedule-override-card__toolbar {
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 0.45rem;
+}
+
+.master-sheet-date-modal .schedule-override-card__toolbar button {
+  align-self: end;
 }
 
 .weekly-schedule-card {

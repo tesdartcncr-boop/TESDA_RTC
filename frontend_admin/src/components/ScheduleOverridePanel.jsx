@@ -25,6 +25,7 @@ export default function ScheduleOverridePanel({
   initialDate,
   category = "regular",
   isModal = false,
+  showDateField = true,
   onClose = null
 }) {
   const [date, setDate] = useState(() => initialDate || getManilaDate());
@@ -152,10 +153,12 @@ export default function ScheduleOverridePanel({
   <p className="subtle">Category: {categoryLabel}</p>
 
       <div className="toolbar schedule-override-card__toolbar">
-        <label>
-          Date
-          <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
-        </label>
+        {showDateField ? (
+          <label>
+            Date
+            <input type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          </label>
+        ) : null}
         <label>
           Schedule Format
           <select value={scheduleType} onChange={(event) => setScheduleType(event.target.value)}>
@@ -186,7 +189,7 @@ export default function ScheduleOverridePanel({
 
   return createPortal(
     <div className="schedule-override-modal" role="presentation" onClick={handleClose}>
-      <div role="presentation" onClick={(event) => event.stopPropagation()}>
+      <div className="master-sheet-modal__surface" role="presentation" onClick={(event) => event.stopPropagation()}>
         {panel}
       </div>
     </div>,

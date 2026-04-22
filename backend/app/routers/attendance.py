@@ -138,6 +138,16 @@ def _display_sheet_value(row: dict, field: str) -> str:
   return value or ""
 
 
+def _employee_master_sort_key(employee: dict) -> tuple[str, str, str, str, int]:
+  surname = (employee.get("last_name") or employee.get("surname") or employee.get("name") or "").strip().casefold()
+  first_name = (employee.get("first_name") or "").strip().casefold()
+  second_name = (employee.get("second_name") or "").strip().casefold()
+  extension = (employee.get("extension") or "").strip().casefold()
+  employee_id = int(employee.get("id") or 0)
+
+  return surname, first_name, second_name, extension, employee_id
+
+
 def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
   start_date = _parse_sheet_date(date_from)
   end_date = _parse_sheet_date(date_to)
@@ -145,12 +155,12 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
     raise HTTPException(status_code=400, detail="From date must be earlier than or equal to to date.")
 
   supabase = get_supabase_client()
-  employee_query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category").order("name")
+  employee_query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category")
 
   if category in {"regular", "jo"}:
     employee_query = employee_query.eq("category", category)
 
-  employees = employee_query.execute().data or []
+  employees = sorted(employee_query.execute().data or [], key=_employee_master_sort_key)
   employee_map = {employee["id"]: employee for employee in employees}
   date_rows = _build_sheet_dates(start_date, end_date)
 
