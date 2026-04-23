@@ -256,6 +256,26 @@ function getCategoryLabel(category) {
   return category === "regular" ? "Regular" : "Job Order";
 }
 
+function getEmployeeSheetTabLabel(employee) {
+  return (employee.surname || employee.last_name || employee.name || employee.display_name || "Employee").trim();
+}
+
+function sortEmployeeSheetTabs(employees = []) {
+  return [...employees].sort((left, right) => {
+    const leftLabel = getEmployeeSheetTabLabel(left);
+    const rightLabel = getEmployeeSheetTabLabel(right);
+    const labelOrder = leftLabel.localeCompare(rightLabel, undefined, { sensitivity: "base" });
+    if (labelOrder !== 0) {
+      return labelOrder;
+    }
+
+    return String(left.employee_no || left.id || "").localeCompare(String(right.employee_no || right.id || ""), undefined, {
+      sensitivity: "base",
+      numeric: true
+    });
+  });
+}
+
 function buildRecordKey(employeeId, date) {
   return `${employeeId}:${date}`;
 }
@@ -467,6 +487,7 @@ function MasterSheetEmployeeSheetModal({
   onClose
 }) {
   const [liveEmployees, setLiveEmployees] = useState(employees);
+  const sortedEmployees = useMemo(() => sortEmployeeSheetTabs(liveEmployees), [liveEmployees]);
 
   useEffect(() => {
     setLiveEmployees(employees);
@@ -496,16 +517,16 @@ function MasterSheetEmployeeSheetModal({
   }, [category, employees]);
 
   const selectedEmployee = useMemo(() => {
-    if (!liveEmployees.length) {
+    if (!sortedEmployees.length) {
       return null;
     }
 
     if (selectedEmployeeId) {
-      return liveEmployees.find((employee) => employee.id === selectedEmployeeId) || liveEmployees[0];
+      return sortedEmployees.find((employee) => employee.id === selectedEmployeeId) || sortedEmployees[0];
     }
 
-    return liveEmployees[0];
-  }, [liveEmployees, selectedEmployeeId]);
+    return sortedEmployees[0];
+  }, [selectedEmployeeId, sortedEmployees]);
 
   const selectedRows = selectedEmployee ? rowsByEmployee?.[selectedEmployee.id] || [] : [];
 
@@ -571,9 +592,9 @@ function MasterSheetEmployeeSheetModal({
         )}
 
         <div className="master-sheet-surname-tabs master-sheet-employee-sheet-modal__tabs" role="tablist" aria-label="Employee sheet tabs">
-            {liveEmployees.map((employee) => {
+          {sortedEmployees.map((employee) => {
             const isSelected = selectedEmployee?.id === employee.id;
-            const tabLabel = (employee.surname || employee.last_name || employee.name || employee.display_name || "Employee").toUpperCase();
+            const tabLabel = getEmployeeSheetTabLabel(employee).toUpperCase();
 
             return (
               <button
@@ -1087,13 +1108,15 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     );
   }, [recordsByKey, sheetState.dates, sheetState.employees]);
 
+  const sortedSheetEmployees = useMemo(() => sortEmployeeSheetTabs(sheetState.employees || []), [sheetState.employees]);
+
   const selectedSurnameEmployee = useMemo(() => {
-    if (!sheetState.employees.length) {
+    if (!sortedSheetEmployees.length) {
       return null;
     }
 
-    return sheetState.employees.find((employee) => employee.id === selectedSurnameEmployeeId) || sheetState.employees[0];
-  }, [selectedSurnameEmployeeId, sheetState.employees]);
+    return sortedSheetEmployees.find((employee) => employee.id === selectedSurnameEmployeeId) || sortedSheetEmployees[0];
+  }, [selectedSurnameEmployeeId, sortedSheetEmployees]);
 
   const selectedEmployeeEditor = useMemo(() => {
     if (!selectedEmployeeEditorId) {
@@ -1104,15 +1127,15 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
   }, [selectedEmployeeEditorId, sheetState.employees]);
 
   useEffect(() => {
-    if (!sheetState.employees.length) {
+    if (!sortedSheetEmployees.length) {
       setSelectedSurnameEmployeeId(null);
       return;
     }
 
-    if (!sheetState.employees.some((employee) => employee.id === selectedSurnameEmployeeId)) {
-      setSelectedSurnameEmployeeId(sheetState.employees[0].id);
+    if (!sortedSheetEmployees.some((employee) => employee.id === selectedSurnameEmployeeId)) {
+      setSelectedSurnameEmployeeId(sortedSheetEmployees[0].id);
     }
-  }, [selectedSurnameEmployeeId, sheetState.employees]);
+  }, [selectedSurnameEmployeeId, sortedSheetEmployees]);
 
   useEffect(() => {
     if (!selectedEmployeeEditorId) {
@@ -1443,7 +1466,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
           )}
 
           <div className="master-sheet-surname-tabs" role="tablist" aria-label="Surname tabs">
-            {sheetState.employees.map((employee) => (
+            {sortedSheetEmployees.map((employee) => (
               <button
                 key={employee.id}
                 type="button"
@@ -1452,7 +1475,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
                 className={selectedSurnameEmployee?.id === employee.id ? "mini-tab active" : "mini-tab"}
                 onClick={() => setSelectedSurnameEmployeeId(employee.id)}
               >
-                {(employee.surname || employee.name || "").toUpperCase()}
+                {getEmployeeSheetTabLabel(employee).toUpperCase()}
               </button>
             ))}
           </div>
