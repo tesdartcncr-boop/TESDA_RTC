@@ -490,6 +490,10 @@ button.danger {
   box-shadow: 0 0 0 3px rgba(15, 107, 107, 0.12);
 }
 
+.master-sheet-date-modal__input {
+  font-weight: 700;
+}
+
 .sheet-weekend-row td:not(.master-sheet-date-col):not(.master-sheet-day-col) {
   background: #fff;
 }
