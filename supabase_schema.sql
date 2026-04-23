@@ -5,6 +5,8 @@
 
   create table if not exists employees (
     id bigserial primary key,
+    employee_no text,
+    office text,
     first_name text not null,
     second_name text,
     last_name text not null,
@@ -14,6 +16,12 @@
     category text not null check (category in ('regular', 'jo')),
     created_at timestamptz not null default now()
   );
+
+  alter table if exists employees
+    add column if not exists employee_no text;
+
+  alter table if exists employees
+    add column if not exists office text;
 
   create unique index if not exists employees_name_category_uq on employees (name, category);
 

@@ -51,10 +51,25 @@ export default function App() {
   const [session, setSession] = useState(null);
   const [authReady, setAuthReady] = useState(false);
   const [authMessage, setAuthMessage] = useState("");
-  const [activePage, setActivePage] = useState("employees");
+  const [activePage, setActivePage] = useState(() => {
+    if (typeof window === "undefined") {
+      return "master";
+    }
+
+    const storedPage = window.localStorage.getItem("admin-active-page");
+    return PAGE_DETAILS[storedPage] ? storedPage : "master";
+  });
   const [updates, setUpdates] = useState([]);
   const [serverIssue, setServerIssue] = useState("");
   const serverRefreshTimerRef = useRef(null);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem("admin-active-page", activePage);
+  }, [activePage]);
 
   useEffect(() => {
     let mounted = true;

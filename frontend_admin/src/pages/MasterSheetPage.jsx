@@ -230,7 +230,7 @@ function composeEmployeeSignatureName(employee, fallback = "N/A") {
 }
 
 function getEmployeeOffice(employee) {
-  return (employee.office || "").trim().toUpperCase();
+  return (employee.office || employee.district_office || "").trim().toUpperCase();
 }
 
 function buildEmployeePreviewRows(employee, dates, recordsByKey) {
@@ -339,7 +339,7 @@ function updateCategorySheetState(setSheetStateByCategory, category, updater) {
   });
 }
 
-function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
+function EmployeeSurnameSheet({ employee, periodLabel, rows, className = "", compact = false }) {
   const employeeNo = formatPlaceholder(String(employee.employee_no || employee.id || "").trim());
   const lastName = formatPlaceholder((employee.surname || employee.last_name || employee.name || employee.display_name || "").trim().toUpperCase());
   const displayName = formatPlaceholder((employee.display_name || employee.name || "").trim().toUpperCase());
@@ -348,39 +348,45 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
   const office = formatPlaceholder(getEmployeeOffice(employee));
 
   return (
-    <article className="master-sheet-surname-sheet">
-      <header className="master-sheet-surname-sheet__header">
-        <p className="section-kicker">Surname tab</p>
-        <h4>{lastName}</h4>
-        <p className="subtle">No. {employeeNo || "-"} · {displayName}</p>
-      </header>
+    <article className={`card master-sheet-surname-sheet ${compact ? "master-sheet-surname-sheet--compact" : ""} ${className}`.trim()}>
+      {!compact ? (
+        <header className="master-sheet-surname-sheet__header">
+          <p className="section-kicker">Employee Sheet</p>
+          <h4>{lastName}</h4>
+          <p className="subtle">No. {employeeNo || "-"} · {displayName}</p>
+        </header>
+      ) : null}
 
       <div className="master-sheet-surname-sheet__page">
-        <div className="master-sheet-surname-sheet__page-header">
-          <p className="master-sheet-surname-sheet__institution">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY (TESDA)</p>
-          <p className="master-sheet-surname-sheet__subinstitution">National Capital Region - MuniPalasTaPat</p>
-          <h5>DAILY TIME RECORD</h5>
-          <p className="master-sheet-surname-sheet__period">{periodLabel}</p>
-        </div>
+        {!compact ? (
+          <div className="master-sheet-surname-sheet__page-header">
+            <p className="master-sheet-surname-sheet__institution">TECHNICAL EDUCATION AND SKILLS DEVELOPMENT AUTHORITY (TESDA)</p>
+            <p className="master-sheet-surname-sheet__subinstitution">National Capital Region - MuniPalasTaPat</p>
+            <h5>DAILY TIME RECORD</h5>
+            <p className="master-sheet-surname-sheet__period">{periodLabel}</p>
+          </div>
+        ) : null}
 
-        <div className="master-sheet-surname-sheet__info-grid">
-          <div>
-            <span>Employee No.</span>
-            <strong>{employeeNo}</strong>
+        {!compact ? (
+          <div className="master-sheet-surname-sheet__info-grid">
+            <div>
+              <span>Employee No.</span>
+              <strong>{employeeNo}</strong>
+            </div>
+            <div>
+              <span>Last Name</span>
+              <strong>{lastName}</strong>
+            </div>
+            <div>
+              <span>First Name</span>
+              <strong>{firstName}</strong>
+            </div>
+            <div>
+              <span>District Office</span>
+              <strong>{office}</strong>
+            </div>
           </div>
-          <div>
-            <span>Last Name</span>
-            <strong>{lastName}</strong>
-          </div>
-          <div>
-            <span>First Name</span>
-            <strong>{firstName}</strong>
-          </div>
-          <div>
-            <span>Office</span>
-            <strong>{office}</strong>
-          </div>
-        </div>
+        ) : null}
 
         <div className="master-sheet-surname-sheet__table-shell">
           <table className="master-sheet-surname-sheet__table">
@@ -427,24 +433,177 @@ function EmployeeSurnameSheet({ employee, periodLabel, rows }) {
           </table>
         </div>
 
-        <div className="master-sheet-surname-sheet__footer">
-          <p className="master-sheet-surname-sheet__statement">
-            I CERTIFY on my honor that the above is a true and correct report of the hours of work performed, record of which was made daily at the time of arrival at and departure from office.
-          </p>
-          <div className="master-sheet-surname-sheet__signatures">
-            <div>
-              <strong>{signatureName}</strong>
-              <span>Name/Signature</span>
-            </div>
-            <div>
-              <strong>{formatPlaceholder("GERARDO A. MERCADO")}</strong>
-              <span>Head of Office</span>
-              <span>Name/Signature</span>
+        {!compact ? (
+          <div className="master-sheet-surname-sheet__footer">
+            <p className="master-sheet-surname-sheet__statement">
+              I CERTIFY on my honor that the above is a true and correct report of the hours of work performed, record of which was made daily at the time of arrival at and departure from office.
+            </p>
+            <div className="master-sheet-surname-sheet__signatures">
+              <div>
+                <strong>{signatureName}</strong>
+                <span>Name/Signature</span>
+              </div>
+              <div>
+                <strong>{formatPlaceholder("GERARDO A. MERCADO")}</strong>
+                <span>Head of Office</span>
+                <span>Name/Signature</span>
+              </div>
             </div>
           </div>
-        </div>
+        ) : null}
       </div>
     </article>
+  );
+}
+
+function MasterSheetEmployeeSheetModal({
+  category,
+  categoryLabel,
+  periodLabel,
+  employees,
+  selectedEmployeeId,
+  setSelectedEmployeeId,
+  rowsByEmployee,
+  onClose
+}) {
+  const [liveEmployees, setLiveEmployees] = useState(employees);
+
+  useEffect(() => {
+    setLiveEmployees(employees);
+  }, [employees]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function refreshEmployees() {
+      try {
+        const rows = await api.getEmployees(category);
+        if (!cancelled && Array.isArray(rows)) {
+          setLiveEmployees(rows);
+        }
+      } catch {
+        if (!cancelled) {
+          setLiveEmployees(employees);
+        }
+      }
+    }
+
+    refreshEmployees();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [category, employees]);
+
+  const selectedEmployee = useMemo(() => {
+    if (!liveEmployees.length) {
+      return null;
+    }
+
+    if (selectedEmployeeId) {
+      return liveEmployees.find((employee) => employee.id === selectedEmployeeId) || liveEmployees[0];
+    }
+
+    return liveEmployees[0];
+  }, [liveEmployees, selectedEmployeeId]);
+
+  const selectedRows = selectedEmployee ? rowsByEmployee?.[selectedEmployee.id] || [] : [];
+
+  useEffect(() => {
+    function handleEscape(event) {
+      if (event.key === "Escape" && typeof onClose === "function") {
+        onClose();
+      }
+    }
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
+  useEffect(() => {
+    if (typeof document === "undefined") {
+      return undefined;
+    }
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, []);
+
+  function handleClose() {
+    if (typeof onClose === "function") {
+      onClose();
+    }
+  }
+
+  const panel = (
+    <section className="card master-sheet-date-modal__dialog master-sheet-employee-sheet-modal__dialog" role="dialog" aria-modal="true" aria-labelledby="master-sheet-employee-sheet-title">
+      <header className="master-sheet-date-modal__header master-sheet-employee-sheet-modal__header">
+        <div className="master-sheet-date-modal__heading">
+          <p className="section-kicker">{categoryLabel} employee sheet</p>
+          <h3 id="master-sheet-employee-sheet-title">{selectedEmployee ? (selectedEmployee.surname || selectedEmployee.last_name || selectedEmployee.name || selectedEmployee.display_name || "Employee Sheet") : "Employee Sheet"}</h3>
+          <p className="subtle">No. {selectedEmployee ? (selectedEmployee.employee_no || selectedEmployee.id || "-") : "-"} · {periodLabel}</p>
+        </div>
+
+        <div className="master-sheet-date-modal__header-actions">
+          <button type="button" className="secondary-btn master-sheet-date-modal__close" onClick={handleClose}>
+            Close
+          </button>
+        </div>
+      </header>
+
+      <div className="master-sheet-employee-sheet-modal__body">
+        {selectedEmployee ? (
+          <div className="master-sheet-employee-sheet-modal__preview">
+            <EmployeeSurnameSheet
+              employee={selectedEmployee}
+              periodLabel={periodLabel}
+              rows={selectedRows}
+              className="master-sheet-surname-sheet--modal"
+                compact
+            />
+          </div>
+        ) : (
+          <p className="subtle master-sheet-date-modal__empty">No employees are available for this category yet.</p>
+        )}
+
+        <div className="master-sheet-surname-tabs master-sheet-employee-sheet-modal__tabs" role="tablist" aria-label="Employee sheet tabs">
+            {liveEmployees.map((employee) => {
+            const isSelected = selectedEmployee?.id === employee.id;
+            const tabLabel = (employee.surname || employee.last_name || employee.name || employee.display_name || "Employee").toUpperCase();
+
+            return (
+              <button
+                key={employee.id}
+                type="button"
+                role="tab"
+                aria-selected={isSelected}
+                className={isSelected ? "mini-tab active" : "mini-tab"}
+                onClick={() => setSelectedEmployeeId(employee.id)}
+              >
+                {tabLabel}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </section>
+  );
+
+  if (typeof document === "undefined" || !document.body) {
+    return panel;
+  }
+
+  return createPortal(
+    <div className="schedule-override-modal master-sheet-date-modal master-sheet-employee-sheet-modal" role="presentation" onClick={handleClose}>
+      <div className="master-sheet-modal__surface master-sheet-employee-sheet-modal__surface" role="presentation" onClick={(event) => event.stopPropagation()}>
+        {panel}
+      </div>
+    </div>,
+    document.body
   );
 }
 
@@ -909,6 +1068,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
   const periodLabel = formatPeriodLabel(dateRange.date_from, dateRange.date_to);
   const isLoadingSheet = sheetState.status.startsWith("Loading");
   const [sheetView, setSheetView] = useState("master");
+  const [isEmployeeSheetOpen, setIsEmployeeSheetOpen] = useState(false);
   const [selectedSurnameEmployeeId, setSelectedSurnameEmployeeId] = useState(null);
   const [selectedDateEditor, setSelectedDateEditor] = useState(null);
   const [selectedEmployeeEditorId, setSelectedEmployeeEditorId] = useState(null);
@@ -1330,35 +1490,60 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
       ) : null}
 
       <div className="master-sheet-view-switcher">
-        <p className="subtle">Sheet tabs</p>
-        <div className="tab-cluster master-sheet-view-tabs" role="tablist" aria-label="Master sheet views">
+        <p className="subtle">Sheet controls</p>
+        <div className="tab-cluster master-sheet-view-tabs" aria-label="Master sheet views">
           <button
             type="button"
-            role="tab"
-            aria-selected={sheetView === "master"}
-            className={sheetView === "master" ? "mini-tab active" : "mini-tab"}
-            onClick={() => setSheetView("master")}
+            aria-pressed={!isEmployeeSheetOpen}
+            className={!isEmployeeSheetOpen ? "mini-tab active" : "mini-tab"}
+            onClick={() => {
+              setSheetView("master");
+              setIsEmployeeSheetOpen(false);
+            }}
           >
             Master Sheet
           </button>
           <button
             type="button"
-            role="tab"
-            aria-selected={sheetView === "surnames"}
-            className={sheetView === "surnames" ? "mini-tab active" : "mini-tab"}
-            onClick={() => setSheetView("surnames")}
+            aria-pressed={isEmployeeSheetOpen}
+            className={isEmployeeSheetOpen ? "mini-tab active" : "mini-tab"}
+            onClick={() => {
+              setSheetView("master");
+              setIsEmployeeSheetOpen(true);
+            }}
           >
-            Surnames
+            Employee Sheet
           </button>
         </div>
       </div>
+
+      {isEmployeeSheetOpen ? (
+        <MasterSheetEmployeeSheetModal
+          key={`${category}:${month}:employee-sheet`}
+          category={category}
+          categoryLabel={categoryLabel}
+          periodLabel={periodLabel}
+          employees={sheetState.employees || []}
+          selectedEmployeeId={selectedSurnameEmployeeId}
+          setSelectedEmployeeId={setSelectedSurnameEmployeeId}
+          rowsByEmployee={previewRowsByEmployee}
+          onClose={() => setIsEmployeeSheetOpen(false)}
+        />
+      ) : null}
     </section>
   );
 }
 
 export default function MasterSheetPage() {
   const [month, setMonth] = useState(() => getManilaMonth());
-  const [activeCategory, setActiveCategory] = useState("regular");
+  const [activeCategory, setActiveCategory] = useState(() => {
+    if (typeof window === "undefined") {
+      return "regular";
+    }
+
+    const storedCategory = window.localStorage.getItem("admin-master-sheet-category");
+    return storedCategory === "jo" ? "jo" : "regular";
+  });
   const [sheetStateByCategory, setSheetStateByCategory] = useState(() => ({
     regular: createEmptySheetState(),
     jo: createEmptySheetState()
@@ -1367,6 +1552,14 @@ export default function MasterSheetPage() {
   const monthLabel = useMemo(() => formatMonthLabel(month), [month]);
   const dateRange = useMemo(() => getMonthRange(month), [month]);
   const activeSheetState = sheetStateByCategory[activeCategory] || createEmptySheetState();
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    window.localStorage.setItem("admin-master-sheet-category", activeCategory);
+  }, [activeCategory]);
   
   useEffect(() => {
     function handleMasterSheetInvalidate() {

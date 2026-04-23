@@ -178,7 +178,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
     raise HTTPException(status_code=400, detail="From date must be earlier than or equal to to date.")
 
   supabase = get_supabase_client()
-  employee_query = supabase.table("employees").select("id,first_name,second_name,last_name,extension,name,category")
+  employee_query = supabase.table("employees").select("id,employee_no,office,first_name,second_name,last_name,extension,name,category")
 
   if category in {"regular", "jo"}:
     employee_query = employee_query.eq("category", category)
@@ -249,6 +249,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
     "employees": [
       {
         "id": employee["id"],
+        "office": employee.get("office"),
         "first_name": employee.get("first_name", ""),
         "second_name": employee.get("second_name"),
         "last_name": employee.get("last_name", ""),
@@ -266,7 +267,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
 def _master_sheet_cache_key(date_from: str, date_to: str, category: str) -> str:
   normalized_category = (category or "all").strip().lower() or "all"
-  return f"attendance:master-sheet:v2:{normalized_category}:{date_from}:{date_to}"
+  return f"attendance:master-sheet:v3:{normalized_category}:{date_from}:{date_to}"
 
 
 def _get_cached_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
@@ -350,7 +351,7 @@ def get_daily_attendance(date: str, category: str = "regular") -> list[dict]:
     return cached_rows
 
   supabase = get_supabase_client()
-  employee_query = supabase.table("employees").select("id,name,category")
+  employee_query = supabase.table("employees").select("id,employee_no,office,name,category")
   if category in {"regular", "jo"}:
     employee_query = employee_query.eq("category", category)
 
@@ -384,7 +385,7 @@ def get_master_attendance(
   search: str = ""
 ) -> list[dict]:
   supabase = get_supabase_client()
-  employee_query = supabase.table("employees").select("id,name,category")
+  employee_query = supabase.table("employees").select("id,employee_no,office,name,category")
 
   if category in {"regular", "jo"}:
     employee_query = employee_query.eq("category", category)

@@ -1,8 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api } from "../services/api";
 
 function createEmptyNameParts() {
   return {
+    employeeNo: "",
     firstName: "",
     middleName: "",
     lastName: "",
@@ -63,6 +64,7 @@ function splitEmployeeName(name) {
 function hydrateEmployeeNameParts(employee) {
   if (employee.first_name || employee.second_name || employee.last_name || employee.extension) {
     return {
+      employeeNo: employee.employee_no || "",
       firstName: employee.first_name || "",
       middleName: employee.second_name || "",
       lastName: employee.last_name || "",
@@ -73,6 +75,7 @@ function hydrateEmployeeNameParts(employee) {
 
   return {
     ...splitEmployeeName(employee.name || ""),
+    employeeNo: employee.employee_no || "",
     employeePassword: ""
   };
 }
@@ -84,11 +87,13 @@ function composeEmployeeName(parts) {
     .join(" ");
 }
 
-function buildEmployeePayload(parts, category, fallbackPassword = null) {
+function buildEmployeePayload(parts, category, office, fallbackPassword = null) {
   const name = composeEmployeeName(parts);
   const employeePassword = parts.employeePassword.trim() || fallbackPassword || null;
 
   return {
+    employee_no: parts.employeeNo.trim() || null,
+    office: office.trim() || null,
     first_name: parts.firstName.trim(),
     second_name: parts.middleName.trim() || null,
     last_name: parts.lastName.trim(),
@@ -188,17 +193,24 @@ function PasswordField({
 
 export default function EmployeesPage() {
   const [category, setCategory] = useState("regular");
+  const [districtOffice, setDistrictOffice] = useState("");
   const [newNameParts, setNewNameParts] = useState(createEmptyNameParts());
   const [employees, setEmployees] = useState([]);
   const [draftNames, setDraftNames] = useState({});
   const [visiblePasswords, setVisiblePasswords] = useState({ new: false });
   const [status, setStatus] = useState("Ready");
+  const hasLoadedDistrictOfficeRef = useRef(false);
 
   async function loadEmployees() {
     setStatus("Loading employees...");
     try {
       const list = await api.getEmployees(category);
       setEmployees(list);
+      if (!hasLoadedDistrictOfficeRef.current) {
+        const sharedOffice = list.find((item) => (item.office || "").trim())?.office || "";
+        setDistrictOffice(sharedOffice);
+        hasLoadedDistrictOfficeRef.current = true;
+      }
       setDraftNames(Object.fromEntries(list.map((item) => [item.id, hydrateEmployeeNameParts(item)])));
       setStatus("Ready");
     } catch (error) {
@@ -236,6 +248,16 @@ export default function EmployeesPage() {
     }));
   }
 
+  async function applyDistrictOffice() {
+    try {
+      await api.updateDistrictOffice({ office: districtOffice });
+      setStatus(districtOffice.trim() ? "District Office applied to all employees" : "District Office cleared for all employees");
+      await loadEmployees();
+    } catch (error) {
+      setStatus(error.message);
+    }
+  }
+
   async function addEmployee() {
     const validationError = validateCreatePayload(newNameParts);
     if (validationError) {
@@ -244,7 +266,7 @@ export default function EmployeesPage() {
     }
 
     try {
-      await api.createEmployee(buildEmployeePayload(newNameParts, category, "1234"));
+      await api.createEmployee(buildEmployeePayload(newNameParts, category, districtOffice, "1234"));
       setNewNameParts(createEmptyNameParts());
       await loadEmployees();
     } catch (error) {
@@ -262,7 +284,7 @@ export default function EmployeesPage() {
     }
 
     try {
-      await api.updateEmployee(employeeId, buildEmployeePayload(nameParts, category));
+      await api.updateEmployee(employeeId, buildEmployeePayload(nameParts, category, districtOffice));
       setStatus("Employee saved");
       await loadEmployees();
     } catch (error) {
@@ -284,7 +306,7 @@ export default function EmployeesPage() {
     <section className="card employee-management-card">
       <h2>Employee Management</h2>
       <p className="subtle">Status: {status}</p>
-      <p className="subtle">Use FN, MN, LN, an optional extension, and assign a password for time in/out.</p>
+      <p className="subtle">Use the shared district office field once, then add employee no., FN, MN, LN, an optional extension, and a password for time in/out.</p>
 
       <div className="employee-management-toolbar">
         <div className="employee-management-tabs-row">
@@ -296,6 +318,31 @@ export default function EmployeesPage() {
         </div>
 
         <div className="employee-management-form-shell">
+          <div className="employee-management-district-office-row">
+            <label className="name-field employee-management-district-office-field">
+              <span>District Office</span>
+              <input
+                className="name-input"
+                placeholder="Used for all employees"
+                value={districtOffice}
+                onChange={(event) => setDistrictOffice(event.target.value)}
+              />
+            </label>
+            <button type="button" className="name-submit name-submit--inline" onClick={applyDistrictOffice}>
+              Apply to all employees
+            </button>
+          </div>
+          <div className="employee-management-number-row">
+            <label className="name-field employee-management-number-field">
+              <span>Employee No.</span>
+              <input
+                className="name-input"
+                placeholder="Optional"
+                value={newNameParts.employeeNo}
+                onChange={(event) => setNewNameParts((prev) => ({ ...prev, employeeNo: event.target.value }))}
+              />
+            </label>
+          </div>
           <div className="name-grid employee-management-form">
             <label className="name-field">
               <span>FN</span>
@@ -354,6 +401,7 @@ export default function EmployeesPage() {
         <table key={category} className="employee-table">
           <thead>
             <tr>
+              <th>Employee No.</th>
               <th>FN</th>
               <th>MN</th>
               <th>LN</th>
@@ -366,6 +414,13 @@ export default function EmployeesPage() {
           <tbody>
             {employees.map((employee, index) => (
               <tr key={employee.id} style={{ "--row-index": index }}>
+                <td>
+                  <input
+                    className="name-input"
+                    value={draftNames[employee.id]?.employeeNo || ""}
+                    onChange={(event) => updateDraftName(employee.id, "employeeNo", event.target.value)}
+                  />
+                </td>
                 <td>
                   <input
                     className="name-input"

@@ -327,6 +327,16 @@ export const api = {
       return data;
     });
   },
+  updateDistrictOffice(payload) {
+    return request("/employees/district-office", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      clearMasterSheetCache();
+      return data;
+    });
+  },
   deleteEmployee(employeeId) {
     return request(`/employees/${employeeId}`, { method: "DELETE" }).then((data) => {
       invalidateCacheRevision();

@@ -93,7 +93,7 @@ def get_enriched_attendance(month: str | None = None) -> list[dict]:
     attendance_query = attendance_query.gte("date", start).lt("date", end)
 
   attendance_rows = attendance_query.execute().data or []
-  employee_rows = supabase.table("employees").select("id,name,category").execute().data or []
+  employee_rows = supabase.table("employees").select("id,employee_no,office,name,category").execute().data or []
   employee_map = {row["id"]: row for row in employee_rows}
 
   enriched = []
@@ -449,11 +449,11 @@ def _write_employee_page_header(sheet, employee: dict, period_label: str) -> tup
   sheet.cell(10, 2).font = value_font
   sheet.cell(10, 2).alignment = Alignment(horizontal="left", vertical="center")
 
-  sheet.cell(11, 1, "Office:")
+  sheet.cell(11, 1, "District Office:")
   sheet.cell(11, 1).font = label_font
   sheet.cell(11, 1).alignment = Alignment(horizontal="left", vertical="center")
   sheet.merge_cells(f"B11:{last_column}11")
-  office_value = _display_placeholder((employee.get("office") or "").strip().upper())
+  office_value = _display_placeholder((employee.get("office") or employee.get("district_office") or "").strip().upper())
   sheet.cell(11, 2, office_value)
   sheet.cell(11, 2).font = value_font
   sheet.cell(11, 2).alignment = Alignment(horizontal="left", vertical="center")

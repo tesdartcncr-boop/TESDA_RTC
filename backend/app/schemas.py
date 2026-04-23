@@ -5,6 +5,8 @@ from pydantic import BaseModel, EmailStr, Field
 
 
 class EmployeeNameParts(BaseModel):
+  employee_no: str | None = Field(default=None, max_length=50)
+  office: str | None = Field(default=None, max_length=150)
   first_name: str = Field(min_length=1, max_length=120)
   second_name: str | None = Field(default=None, max_length=120)
   last_name: str = Field(min_length=1, max_length=120)
@@ -21,6 +23,10 @@ class EmployeeUpdate(EmployeeNameParts):
   name: str = Field(min_length=2, max_length=120)
   category: str = Field(pattern="^(regular|jo)$")
   employee_password: str | None = Field(default=None, min_length=4, max_length=120)
+
+
+class DistrictOfficeUpdate(BaseModel):
+  office: str | None = Field(default=None, max_length=150)
 
 
 class ClockRequest(BaseModel):
