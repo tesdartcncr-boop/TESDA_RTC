@@ -118,6 +118,21 @@ function parseTimeTokenToMinutes(value) {
   return null;
 }
 
+function calculateWorkedMinutes(startMinutes, endMinutes) {
+  if (startMinutes === null || endMinutes === null) {
+    return null;
+  }
+
+  const lunchStartMinutes = 12 * 60;
+  const lunchEndMinutes = 13 * 60;
+  const grossMinutes = Math.max(endMinutes - startMinutes, 0);
+  const lunchOverlapStart = Math.max(startMinutes, lunchStartMinutes);
+  const lunchOverlapEnd = Math.min(endMinutes, lunchEndMinutes);
+  const lunchOverlapMinutes = Math.max(lunchOverlapEnd - lunchOverlapStart, 0);
+
+  return Math.max(grossMinutes - lunchOverlapMinutes, 0);
+}
+
 function formatTotalHours(record) {
   if (!record) {
     return "—";
@@ -151,8 +166,7 @@ function formatTotalHours(record) {
       return formatDuration(requiredMinutes);
     }
 
-    const grossMinutes = Math.max(timeOutMinutes - effectiveTimeInMinutes, 0);
-    const workedMinutes = Math.max(grossMinutes - 60, 0);
+    const workedMinutes = calculateWorkedMinutes(effectiveTimeInMinutes, timeOutMinutes);
     return formatDuration(Math.max(Math.min(workedMinutes, requiredMinutes), 0));
   }
 
@@ -162,12 +176,9 @@ function formatTotalHours(record) {
     return "—";
   }
 
-  const effectiveTimeInMinutes = Math.max(timeInMinutes, recordFloorMinutes);
-  const grossMinutes = Math.max(timeOutMinutes - effectiveTimeInMinutes, 0);
-  const workedMinutes = Math.max(grossMinutes - 60, 0);
+  const workedMinutes = calculateWorkedMinutes(timeInMinutes, timeOutMinutes);
 
-  const lateMinutes = Number(record.late_minutes || 0);
-  const totalMinutes = Math.max(Math.min(workedMinutes, requiredMinutes) - lateMinutes, 0);
+  const totalMinutes = Math.max(Math.min(workedMinutes, requiredMinutes), 0);
   return formatDuration(totalMinutes);
 }
 

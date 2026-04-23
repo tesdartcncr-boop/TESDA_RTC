@@ -163,8 +163,7 @@ def calculate_dtr_metrics(
 
   undertime_minutes = 0
   if time_in_minutes is not None and time_out_minutes is not None:
-    worked_minutes = _elapsed_minutes_excluding_lunch(time_in_minutes, time_out_minutes)
-    undertime_minutes = max(required_minutes - worked_minutes, 0)
+    undertime_minutes = _elapsed_minutes_excluding_lunch(time_out_minutes, schedule_end_minutes)
 
   overtime_minutes = 0
   return late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out

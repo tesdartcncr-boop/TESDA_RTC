@@ -344,7 +344,7 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
 
 @router.get("/daily")
 def get_daily_attendance(date: str, category: str = "regular") -> list[dict]:
-  cache_key = f"attendance:daily:{category}:{date}"
+  cache_key = f"attendance:daily:v2:{category}:{date}"
   cached_rows = get_cached_value(cache_key)
   if cached_rows is not None:
     return cached_rows
