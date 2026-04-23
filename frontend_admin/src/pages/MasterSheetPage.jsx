@@ -176,9 +176,11 @@ function formatTotalHours(record) {
     return "—";
   }
 
-  const workedMinutes = calculateWorkedMinutes(timeInMinutes, timeOutMinutes);
+  const workedMinutes = calculateWorkedMinutes(Math.max(timeInMinutes, recordFloorMinutes), timeOutMinutes);
+  const lateMinutes = Math.max(Number(record.late_minutes || 0), 0);
+  const maxAllowedMinutes = Math.max(requiredMinutes - lateMinutes, 0);
 
-  const totalMinutes = Math.max(Math.min(workedMinutes, requiredMinutes), 0);
+  const totalMinutes = Math.max(Math.min(workedMinutes, maxAllowedMinutes), 0);
   return formatDuration(totalMinutes);
 }
 

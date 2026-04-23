@@ -267,7 +267,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
 def _master_sheet_cache_key(date_from: str, date_to: str, category: str) -> str:
   normalized_category = (category or "all").strip().lower() or "all"
-  return f"attendance:master-sheet:v3:{normalized_category}:{date_from}:{date_to}"
+  return f"attendance:master-sheet:v5:{normalized_category}:{date_from}:{date_to}"
 
 
 def _get_cached_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
@@ -345,7 +345,7 @@ def _resolve_master_sheet_values(payload: MasterSheetAttendanceUpsert, current: 
 
 @router.get("/daily")
 def get_daily_attendance(date: str, category: str = "regular") -> list[dict]:
-  cache_key = f"attendance:daily:v2:{category}:{date}"
+  cache_key = f"attendance:daily:v4:{category}:{date}"
   cached_rows = get_cached_value(cache_key)
   if cached_rows is not None:
     return cached_rows

@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 from .response_cache import get_cached_value, set_cached_value
 from ..supabase_client import get_supabase_client
 from .schedule_settings import calculate_attendance_snapshot
-from .time_utils import _elapsed_minutes_excluding_lunch, is_leave_code, to_minutes
+from .time_utils import _calculate_credited_minutes, _elapsed_minutes_excluding_lunch, is_leave_code, to_minutes
 
 
 def format_duration(minutes: int | None) -> str:
@@ -60,8 +60,10 @@ def _calculate_total_hours(record: dict | None) -> str:
   if time_in_minutes is None or time_out_minutes is None:
     return ""
 
+  time_in_minutes = max(time_in_minutes, record_floor_minutes)
   worked_minutes = _elapsed_minutes_excluding_lunch(time_in_minutes, time_out_minutes)
-  total_minutes = max(min(worked_minutes, required_minutes), 0)
+  late_minutes = max(int(record.get("late_minutes") or 0), 0)
+  total_minutes = _calculate_credited_minutes(worked_minutes, late_minutes, required_minutes)
 
   return format_duration(total_minutes)
 
@@ -80,7 +82,7 @@ def get_month_range(month: str) -> tuple[str, str]:
 
 
 def get_enriched_attendance(month: str | None = None) -> list[dict]:
-  cache_key = f"reports:enriched-attendance:v3:{(month or 'all').strip() or 'all'}"
+  cache_key = f"reports:enriched-attendance:v5:{(month or 'all').strip() or 'all'}"
   cached_rows = get_cached_value(cache_key)
   if cached_rows is not None:
     return cached_rows

@@ -84,6 +84,11 @@ def _elapsed_minutes_excluding_lunch(start_minutes: int | None, end_minutes: int
   return max(gross_minutes - lunch_overlap_minutes, 0)
 
 
+def _calculate_credited_minutes(worked_minutes: int, late_minutes: int, required_minutes: int) -> int:
+  max_allowed_minutes = max(required_minutes - max(late_minutes, 0), 0)
+  return max(min(worked_minutes, max_allowed_minutes), 0)
+
+
 def _resolve_schedule_details(schedule: str | dict | None) -> tuple[int, int, int]:
   if isinstance(schedule, dict):
     schedule_start = to_minutes(schedule.get("schedule_start")) or 480
@@ -156,16 +161,16 @@ def calculate_dtr_metrics(
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start
 
-  raw_time_in_minutes = time_in_minutes
   if time_in_minutes is not None:
     time_in_minutes = max(time_in_minutes, record_floor_minutes)
 
   late_minutes = _elapsed_minutes_excluding_lunch(late_threshold_minutes, time_in_minutes)
 
   undertime_minutes = 0
-  if raw_time_in_minutes is not None and time_out_minutes is not None:
-    worked_minutes = _elapsed_minutes_excluding_lunch(raw_time_in_minutes, time_out_minutes)
-    undertime_minutes = max(required_minutes - worked_minutes, 0)
+  if time_in_minutes is not None and time_out_minutes is not None:
+    worked_minutes = _elapsed_minutes_excluding_lunch(time_in_minutes, time_out_minutes)
+    credited_minutes = _calculate_credited_minutes(worked_minutes, late_minutes, required_minutes)
+    undertime_minutes = max(required_minutes - late_minutes - credited_minutes, 0)
 
   overtime_minutes = 0
   return late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out

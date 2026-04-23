@@ -6,6 +6,7 @@ from time import monotonic
 from ..supabase_client import get_supabase_client
 
 _CACHE_REVISION_TTL_SECONDS = 3.0
+_ATTENDANCE_MATH_REVISION = "attendance-math:v3"
 _revision_lock = Lock()
 _cached_revision: str | None = None
 _cached_revision_expires_at = 0.0
@@ -44,7 +45,7 @@ def build_cache_revision() -> str:
     if _cached_revision is not None and now < _cached_revision_expires_at:
       return _cached_revision
 
-  snapshots: list[str] = []
+  snapshots: list[str] = [_ATTENDANCE_MATH_REVISION]
   for table_name, timestamp_column in (
     ("employees", "created_at"),
     ("attendance", "updated_at"),
