@@ -785,8 +785,6 @@ def _recalculate_attendance_rows(attendance_rows: list[dict], employee_categorie
     leave_type = (row.get("leave_type") or "").strip().upper() or None
     time_in_value = row.get("time_in")
     time_out_value = row.get("time_out")
-    if row_category == DEFAULT_WEEKLY_CATEGORY:
-      time_in_value = clamp_regular_recorded_time(time_in_value)
 
     if not leave_type:
       normalized_time_in = normalize_time_token(time_in_value)
