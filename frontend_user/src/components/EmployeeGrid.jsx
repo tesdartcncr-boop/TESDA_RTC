@@ -206,6 +206,8 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
     const attendance = attendanceByEmployeeId.get(employee.id);
     const hasTimeIn = Boolean(attendance?.time_in);
     const hasTimeOut = Boolean(attendance?.time_out);
+    const recordedLeaveCode = getAttendanceLeaveCode(attendance);
+    const defaultLeaveType = recordedLeaveCode === "OB" && hasTimeIn && !hasTimeOut ? "" : recordedLeaveCode;
 
     if (hasTimeIn && hasTimeOut) {
       return;
@@ -213,7 +215,7 @@ export default function EmployeeGrid({ employees, attendanceByEmployeeId = new M
 
     setActiveEmployeeId(employee.id);
     setPassword("");
-    setLeaveType(getAttendanceLeaveCode(attendance));
+    setLeaveType(defaultLeaveType);
     setPasswordVisible(false);
     setErrorMessage("");
     setIsSubmitting(false);

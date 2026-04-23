@@ -148,7 +148,7 @@ function formatTotalHours(record) {
   }
 
   const scheduleType = String(record.schedule_type || "A").trim().toUpperCase();
-  const requiredMinutes = scheduleType === "B" ? 600 : 480;
+  const requiredMinutes = Number(record.required_minutes || (scheduleType === "B" ? 600 : 480));
   const category = String(record.category || "").trim().toLowerCase();
   const recordFloorMinutes = category === "jo" ? 8 * 60 : 7 * 60;
 
@@ -160,7 +160,7 @@ function formatTotalHours(record) {
     const effectiveTimeInMinutes = timeInToken && timeInToken !== "OB"
       ? Math.max(parseTimeTokenToMinutes(record.time_in) || recordFloorMinutes, recordFloorMinutes)
       : recordFloorMinutes;
-    const scheduleEndMinutes = scheduleType === "B" ? 19 * 60 : 17 * 60;
+    const scheduleEndMinutes = requiredMinutes >= 600 ? 19 * 60 : 17 * 60;
     const timeOutMinutes = timeOutToken === "OB" ? scheduleEndMinutes : parseTimeTokenToMinutes(record.time_out);
     if (timeOutMinutes === null) {
       return formatDuration(requiredMinutes);

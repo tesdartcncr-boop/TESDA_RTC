@@ -533,16 +533,16 @@ async def clock_attendance(payload: ClockRequest) -> dict:
       if existing and existing.get("time_in") and existing.get("time_out"):
         raise HTTPException(status_code=400, detail="Time In and Time Out already recorded for this date.")
 
-      if existing and existing.get("time_in") and not existing.get("time_out"):
+      if existing_open_ob:
         late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
           schedule_context,
-          existing.get("time_in"),
+          "OB",
           "OB",
           "OB",
           schedule_context.get("late_threshold")
         )
         action = "Time Out"
-      elif existing_open_ob:
+      elif existing and existing.get("time_in") and not existing.get("time_out"):
         late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
           schedule_context,
           existing.get("time_in"),
@@ -554,7 +554,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
       else:
         late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
           schedule_context,
-          recorded_clock_time,
+          "OB",
           None,
           "OB",
           schedule_context.get("late_threshold")
@@ -594,7 +594,7 @@ async def clock_attendance(payload: ClockRequest) -> dict:
 
       late, undertime, overtime, normalized_in, normalized_out = calculate_dtr_metrics(
         schedule_context,
-        existing.get("time_in"),
+        "OB",
         recorded_clock_time,
         "OB",
         schedule_context.get("late_threshold")

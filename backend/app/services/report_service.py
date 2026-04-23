@@ -32,7 +32,7 @@ def _calculate_total_hours(record: dict | None) -> str:
     return ""
 
   schedule_type = str(record.get("schedule_type") or "A").strip().upper()
-  required_minutes = 600 if schedule_type == "B" else 480
+  required_minutes = int(record.get("required_minutes") or (600 if schedule_type == "B" else 480))
   category = str(record.get("category") or "").strip().lower()
   record_floor_minutes = 8 * 60 if category == "jo" else 7 * 60
 
@@ -46,7 +46,7 @@ def _calculate_total_hours(record: dict | None) -> str:
     else:
       effective_time_in_minutes = max(effective_time_in_minutes, record_floor_minutes)
 
-    schedule_end_minutes = 1140 if schedule_type == "B" else 1020
+    schedule_end_minutes = 1140 if required_minutes >= 600 else 1020
     time_out_minutes = schedule_end_minutes if time_out_token == "OB" else to_minutes(record.get("time_out"))
     if time_out_minutes is None:
       return format_duration(required_minutes)

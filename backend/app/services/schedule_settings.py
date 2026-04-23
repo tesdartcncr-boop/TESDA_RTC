@@ -887,6 +887,7 @@ def calculate_attendance_snapshot(
   resolved_category = normalize_weekly_category(category)
   fallback_schedule_type = normalize_schedule_type(schedule_type) or category_to_schedule_type(resolved_category)
   schedule_context = resolve_schedule_context(date_value, resolved_category, fallback_schedule_type)
+  required_minutes = int(schedule_context.get("required_minutes") or DEFAULT_REQUIRED_MINUTES)
 
   normalized_leave = (leave_type or "").strip().upper() or None
   if normalized_leave and normalized_leave != "OB":
@@ -904,6 +905,7 @@ def calculate_attendance_snapshot(
 
   return {
     "schedule_type": schedule_context.get("schedule_type") or fallback_schedule_type,
+    "required_minutes": required_minutes,
     "late_minutes": late_minutes,
     "undertime_minutes": undertime_minutes,
     "overtime_minutes": overtime_minutes,
