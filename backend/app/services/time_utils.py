@@ -156,14 +156,16 @@ def calculate_dtr_metrics(
   if late_threshold_minutes is None:
     late_threshold_minutes = schedule_start
 
+  raw_time_in_minutes = time_in_minutes
   if time_in_minutes is not None:
     time_in_minutes = max(time_in_minutes, record_floor_minutes)
 
   late_minutes = _elapsed_minutes_excluding_lunch(late_threshold_minutes, time_in_minutes)
 
   undertime_minutes = 0
-  if time_in_minutes is not None and time_out_minutes is not None:
-    undertime_minutes = _elapsed_minutes_excluding_lunch(time_out_minutes, schedule_end_minutes)
+  if raw_time_in_minutes is not None and time_out_minutes is not None:
+    worked_minutes = _elapsed_minutes_excluding_lunch(raw_time_in_minutes, time_out_minutes)
+    undertime_minutes = max(required_minutes - worked_minutes, 0)
 
   overtime_minutes = 0
   return late_minutes, undertime_minutes, overtime_minutes, normalized_in, normalized_out
