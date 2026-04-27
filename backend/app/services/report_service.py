@@ -10,7 +10,7 @@ from openpyxl.utils import get_column_letter
 from .response_cache import get_cached_value, set_cached_value
 from ..supabase_client import get_supabase_client
 from .schedule_settings import calculate_attendance_snapshot
-from .time_utils import _calculate_credited_minutes, _elapsed_minutes_excluding_lunch, is_leave_code, to_minutes
+from .time_utils import _elapsed_minutes_excluding_lunch, is_leave_code, to_minutes
 
 
 def format_duration(minutes: int | None) -> str:
@@ -34,17 +34,18 @@ def _calculate_total_hours(record: dict | None) -> str:
   schedule_type = str(record.get("schedule_type") or "A").strip().upper()
   required_minutes = int(record.get("required_minutes") or (600 if schedule_type == "B" else 480))
   category = str(record.get("category") or "").strip().lower()
-  record_floor_minutes = 8 * 60 if category == "jo" else 7 * 60
+  work_floor_minutes = 7 * 60
+  ob_anchor_minutes = 8 * 60 if category == "jo" else 7 * 60
 
   if is_ob_record:
     if not time_out_token:
       return format_duration(required_minutes)
 
-    effective_time_in_minutes = record_floor_minutes if time_in_token in {"", "OB"} else to_minutes(record.get("time_in"))
+    effective_time_in_minutes = ob_anchor_minutes if time_in_token in {"", "OB"} else to_minutes(record.get("time_in"))
     if effective_time_in_minutes is None:
-      effective_time_in_minutes = record_floor_minutes
+      effective_time_in_minutes = ob_anchor_minutes
     else:
-      effective_time_in_minutes = max(effective_time_in_minutes, record_floor_minutes)
+      effective_time_in_minutes = max(effective_time_in_minutes, ob_anchor_minutes)
 
     schedule_end_minutes = 1140 if required_minutes >= 600 else 1020
     time_out_minutes = schedule_end_minutes if time_out_token == "OB" else to_minutes(record.get("time_out"))
@@ -52,20 +53,16 @@ def _calculate_total_hours(record: dict | None) -> str:
       return format_duration(required_minutes)
 
     worked_minutes = _elapsed_minutes_excluding_lunch(effective_time_in_minutes, time_out_minutes)
-    total_minutes = max(min(worked_minutes, required_minutes), 0)
-    return format_duration(total_minutes)
+    return format_duration(max(min(worked_minutes, required_minutes), 0))
 
   time_in_minutes = to_minutes(record.get("time_in"))
   time_out_minutes = to_minutes(record.get("time_out"))
   if time_in_minutes is None or time_out_minutes is None:
     return ""
 
-  time_in_minutes = max(time_in_minutes, record_floor_minutes)
+  time_in_minutes = max(time_in_minutes, work_floor_minutes)
   worked_minutes = _elapsed_minutes_excluding_lunch(time_in_minutes, time_out_minutes)
-  late_minutes = max(int(record.get("late_minutes") or 0), 0)
-  total_minutes = _calculate_credited_minutes(worked_minutes, late_minutes, required_minutes)
-
-  return format_duration(total_minutes)
+  return format_duration(max(min(worked_minutes, required_minutes), 0))
 
 
 def get_month_range(month: str) -> tuple[str, str]:

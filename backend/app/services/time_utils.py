@@ -120,22 +120,23 @@ def calculate_dtr_metrics(
   normalized_out = normalize_time_token(time_out)
   normalized_leave = (leave_type or "").upper() or None
   schedule_start_minutes, schedule_end_minutes, required_minutes = _resolve_schedule_details(schedule)
-  record_floor_minutes, record_floor_token = _resolve_ob_anchor(schedule)
+  record_floor_minutes = 7 * 60
+  ob_anchor_minutes, ob_anchor_token = _resolve_ob_anchor(schedule)
 
   if normalized_leave == "OB" or normalized_in == "OB" or normalized_out == "OB":
     if normalized_out is None:
       if normalized_in in {None, "OB"}:
-        return 0, 0, 0, record_floor_token, None
+        return 0, 0, 0, ob_anchor_token, None
 
       return 0, 0, 0, normalized_in, None
 
     is_ob_time_in = normalized_in in {None, "OB"}
-    effective_time_in_token = record_floor_token if is_ob_time_in else normalized_in
-    effective_time_in_minutes = record_floor_minutes if is_ob_time_in else to_minutes(normalized_in)
+    effective_time_in_token = ob_anchor_token if is_ob_time_in else normalized_in
+    effective_time_in_minutes = ob_anchor_minutes if is_ob_time_in else to_minutes(normalized_in)
     if effective_time_in_minutes is None:
       return 0, 0, 0, effective_time_in_token, None
 
-    effective_time_in_minutes = max(effective_time_in_minutes, record_floor_minutes)
+    effective_time_in_minutes = max(effective_time_in_minutes, ob_anchor_minutes)
 
     is_ob_time_out = normalized_out == "OB"
     time_out_minutes = schedule_end_minutes if is_ob_time_out else to_minutes(normalized_out)

@@ -150,7 +150,8 @@ function formatTotalHours(record) {
   const scheduleType = String(record.schedule_type || "A").trim().toUpperCase();
   const requiredMinutes = Number(record.required_minutes || (scheduleType === "B" ? 600 : 480));
   const category = String(record.category || "").trim().toLowerCase();
-  const recordFloorMinutes = category === "jo" ? 8 * 60 : 7 * 60;
+  const workFloorMinutes = 7 * 60;
+  const obAnchorMinutes = category === "jo" ? 8 * 60 : 7 * 60;
 
   if (isObRecord) {
     if (!timeOutToken) {
@@ -158,8 +159,8 @@ function formatTotalHours(record) {
     }
 
     const effectiveTimeInMinutes = timeInToken && timeInToken !== "OB"
-      ? Math.max(parseTimeTokenToMinutes(record.time_in) || recordFloorMinutes, recordFloorMinutes)
-      : recordFloorMinutes;
+      ? Math.max(parseTimeTokenToMinutes(record.time_in) || obAnchorMinutes, obAnchorMinutes)
+      : obAnchorMinutes;
     const scheduleEndMinutes = requiredMinutes >= 600 ? 19 * 60 : 17 * 60;
     const timeOutMinutes = timeOutToken === "OB" ? scheduleEndMinutes : parseTimeTokenToMinutes(record.time_out);
     if (timeOutMinutes === null) {
@@ -176,12 +177,8 @@ function formatTotalHours(record) {
     return "—";
   }
 
-  const workedMinutes = calculateWorkedMinutes(Math.max(timeInMinutes, recordFloorMinutes), timeOutMinutes);
-  const lateMinutes = Math.max(Number(record.late_minutes || 0), 0);
-  const maxAllowedMinutes = Math.max(requiredMinutes - lateMinutes, 0);
-
-  const totalMinutes = Math.max(Math.min(workedMinutes, maxAllowedMinutes), 0);
-  return formatDuration(totalMinutes);
+  const workedMinutes = calculateWorkedMinutes(Math.max(timeInMinutes, workFloorMinutes), timeOutMinutes);
+  return formatDuration(Math.max(Math.min(workedMinutes, requiredMinutes), 0));
 }
 
 function formatPlaceholder(value, fallback = "N/A") {

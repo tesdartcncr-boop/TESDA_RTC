@@ -777,8 +777,8 @@ export default function WeeklySchedulePanel({
               </article>
               <article className="weekly-schedule-summary-card">
                 <span>Calculation floor</span>
-                <strong>8:00 AM</strong>
-                <p>Earlier punches stay on the record, but Job Order calculations start at 8:00 AM.</p>
+                <strong>7:00 AM</strong>
+                <p>Earlier punches stay on the record, but Job Order calculations start at 7:00 AM.</p>
               </article>
               <article className="weekly-schedule-summary-card">
                 <span>Weekday late</span>
