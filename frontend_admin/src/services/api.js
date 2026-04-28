@@ -244,7 +244,7 @@ async function request(path, options = {}) {
       }
     });
   } catch {
-    const message = "Server disconnected. Please refresh the page.";
+    const message = "Connection lost. Changes stay on the page and will retry automatically.";
     notifyServerIssue(message);
     throw new Error(message);
   }
@@ -264,7 +264,7 @@ async function request(path, options = {}) {
     }
 
     if (SERVER_ERROR_STATUSES.has(response.status)) {
-      notifyServerIssue("Server error. Please refresh the page.");
+      notifyServerIssue("Server unavailable. Changes stay on the page and will retry automatically.");
     }
 
     throw new Error(errorMessage);

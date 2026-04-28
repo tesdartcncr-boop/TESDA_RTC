@@ -318,6 +318,25 @@ function createDraft(record, employeeId, date) {
   };
 }
 
+function isMasterSheetDraftDirty(draft, record) {
+  if (!draft) {
+    return false;
+  }
+
+  const draftTimeIn = (draft.time_in || "").trim();
+  const draftTimeOut = (draft.time_out || "").trim();
+  const recordTimeIn = (getDisplayValue(record, "time_in") || "").trim();
+  const recordTimeOut = (getDisplayValue(record, "time_out") || "").trim();
+
+  return draftTimeIn !== recordTimeIn || draftTimeOut !== recordTimeOut;
+}
+
+function getDirtyMasterSheetDraftKeys(recordsByKey = {}, draftsByKey = {}) {
+  return Object.entries(draftsByKey)
+    .filter(([key, draft]) => isMasterSheetDraftDirty(draft, recordsByKey[key]))
+    .map(([key]) => key);
+}
+
 function normalizeInputValue(value) {
   return (value || "").toUpperCase();
 }
@@ -1098,6 +1117,12 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     return Object.fromEntries((sheetState.records || []).map((record) => [buildRecordKey(record.employee_id, record.date), record]));
   }, [sheetState.records]);
 
+  const autoSaveTimersRef = useRef(new Map());
+  const saveDraftRef = useRef(saveDraft);
+  const recordsByKeyRef = useRef(recordsByKey);
+  const draftsByKeyRef = useRef(sheetState.draftsByKey || {});
+  const retryDirtyDraftsRef = useRef(async () => true);
+
   const previewRowsByEmployee = useMemo(() => {
     return Object.fromEntries(
       (sheetState.employees || []).map((employee) => [
@@ -1145,6 +1170,97 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
       setSelectedEmployeeEditorId(null);
     }
   }, [selectedEmployeeEditorId, sheetState.employees]);
+
+  useEffect(() => {
+    saveDraftRef.current = saveDraft;
+  }, [saveDraft]);
+
+  useEffect(() => {
+    recordsByKeyRef.current = recordsByKey;
+  }, [recordsByKey]);
+
+  useEffect(() => {
+    draftsByKeyRef.current = sheetState.draftsByKey || {};
+  }, [sheetState.draftsByKey]);
+
+  useEffect(() => {
+    return () => {
+      autoSaveTimersRef.current.forEach((timerId) => window.clearTimeout(timerId));
+      autoSaveTimersRef.current.clear();
+    };
+  }, []);
+
+  useEffect(() => {
+    (sheetState.dates || []).forEach((dateInfo) => {
+      (sheetState.employees || []).forEach((employee) => {
+        const key = buildRecordKey(employee.id, dateInfo.date);
+        const record = recordsByKey[key];
+        const draft = sheetState.draftsByKey?.[key] || createDraft(record, employee.id, dateInfo.date);
+        const draftTimeIn = (draft.time_in || "").trim();
+        const draftTimeOut = (draft.time_out || "").trim();
+        const recordTimeIn = (getDisplayValue(record, "time_in") || "").trim();
+        const recordTimeOut = (getDisplayValue(record, "time_out") || "").trim();
+        const isDirty = draftTimeIn !== recordTimeIn || draftTimeOut !== recordTimeOut;
+        const existingTimer = autoSaveTimersRef.current.get(key);
+
+        if (!isDirty) {
+          if (existingTimer) {
+            window.clearTimeout(existingTimer);
+            autoSaveTimersRef.current.delete(key);
+          }
+
+          return;
+        }
+
+        if (existingTimer) {
+          window.clearTimeout(existingTimer);
+        }
+
+        const timeoutId = window.setTimeout(() => {
+          autoSaveTimersRef.current.delete(key);
+          saveDraftRef.current(employee.id, dateInfo.date, { silent: true });
+        }, 650);
+
+        autoSaveTimersRef.current.set(key, timeoutId);
+      });
+    });
+  }, [recordsByKey, sheetState.dates, sheetState.draftsByKey, sheetState.employees]);
+
+  useEffect(() => {
+    retryDirtyDraftsRef.current = async () => {
+      const dirtyKeys = getDirtyMasterSheetDraftKeys(recordsByKeyRef.current, draftsByKeyRef.current);
+
+      if (!dirtyKeys.length) {
+        return true;
+      }
+
+      for (const key of dirtyKeys) {
+        const [employeeId, date] = key.split(":");
+
+        if (!employeeId || !date) {
+          continue;
+        }
+
+        const saved = await saveDraftRef.current(employeeId, date, { silent: true });
+        if (!saved) {
+          return false;
+        }
+      }
+
+      updateCategorySheetState(setSheetState, category, {
+        status: "Ready"
+      });
+
+      return true;
+    };
+
+    function handleServerRestored() {
+      retryDirtyDraftsRef.current().catch(() => {});
+    }
+
+    window.addEventListener("server:restored", handleServerRestored);
+    return () => window.removeEventListener("server:restored", handleServerRestored);
+  }, [category, setSheetState]);
 
   useEffect(() => {
     let mounted = true;
@@ -1220,7 +1336,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
     const key = buildRecordKey(employeeId, date);
     const draft = sheetState.draftsByKey?.[key];
     if (!draft) {
-      return;
+      return true;
     }
 
     const requestVersion = draftVersionRef.current.get(key) || 0;
@@ -1239,7 +1355,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
         };
       });
       draftVersionRef.current.delete(key);
-      return;
+      return true;
     }
 
     if (!silent) {
@@ -1292,11 +1408,27 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
         date_to: dateRange.date_to,
         category
       });
+
+      return true;
     } catch (error) {
       updateCategorySheetState(setSheetState, category, {
         status: error.message
       });
+
+      return false;
     }
+  }
+
+  function flushAutoSave(employeeId, date) {
+    const key = buildRecordKey(employeeId, date);
+    const existingTimer = autoSaveTimersRef.current.get(key);
+
+    if (existingTimer) {
+      window.clearTimeout(existingTimer);
+      autoSaveTimersRef.current.delete(key);
+    }
+
+    saveDraftRef.current(employeeId, date, { silent: true });
   }
 
   async function exportExcel() {
@@ -1427,7 +1559,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
                             spellCheck={false}
                             autoComplete="off"
                             onChange={(event) => updateDraft(employee.id, dateInfo.date, "time_in", event.target.value)}
-                            onBlur={() => saveDraft(employee.id, dateInfo.date)}
+                            onBlur={() => flushAutoSave(employee.id, dateInfo.date)}
                           />
                         </td>
                         <td className="master-sheet-time-out-cell">
@@ -1438,7 +1570,7 @@ function MasterSheetCategoryPanel({ category, month, monthLabel, dateRange, shee
                             spellCheck={false}
                             autoComplete="off"
                             onChange={(event) => updateDraft(employee.id, dateInfo.date, "time_out", event.target.value)}
-                            onBlur={() => saveDraft(employee.id, dateInfo.date)}
+                            onBlur={() => flushAutoSave(employee.id, dateInfo.date)}
                           />
                         </td>
                       </Fragment>
@@ -1582,6 +1714,33 @@ export default function MasterSheetPage() {
 
     window.localStorage.setItem("admin-master-sheet-category", activeCategory);
   }, [activeCategory]);
+
+  useEffect(() => {
+    function handleServerRestored() {
+      setSheetStateByCategory((prev) => {
+        let didChange = false;
+        const nextState = { ...prev };
+
+        ["regular", "jo"].forEach((category) => {
+          const current = prev[category] || createEmptySheetState();
+          const hasDrafts = Object.keys(current.draftsByKey || {}).length > 0;
+
+          if (!hasDrafts && current.loadedRangeKey && current.status !== "Ready") {
+            nextState[category] = {
+              ...current,
+              loadedRangeKey: ""
+            };
+            didChange = true;
+          }
+        });
+
+        return didChange ? nextState : prev;
+      });
+    }
+
+    window.addEventListener("server:restored", handleServerRestored);
+    return () => window.removeEventListener("server:restored", handleServerRestored);
+  }, []);
   
   useEffect(() => {
     function handleMasterSheetInvalidate() {

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import LoginScreen from "./components/LoginScreen";
 import NavBar from "./components/NavBar";
 import AuthorizedEmailsPage from "./pages/AuthorizedEmailsPage";
@@ -6,7 +6,7 @@ import EmployeesPage from "./pages/EmployeesPage";
 import MasterSheetPage from "./pages/MasterSheetPage";
 import ReportsPage from "./pages/ReportsPage";
 import ScheduleSettingsPage from "./pages/ScheduleSettingsPage";
-import { api } from "./services/api";
+import { API_BASE_URL, api } from "./services/api";
 import { clearPortalSession, getPortalSession } from "./services/session";
 import { supabase } from "./services/supabase";
 import { connectRealtime } from "./services/socket";
@@ -61,7 +61,7 @@ export default function App() {
   });
   const [updates, setUpdates] = useState([]);
   const [serverIssue, setServerIssue] = useState("");
-  const serverRefreshTimerRef = useRef(null);
+  const [realtimeConnectionVersion, setRealtimeConnectionVersion] = useState(0);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -159,27 +159,37 @@ export default function App() {
     };
 
     socket.onclose = () => {
-      reportDisconnect("Realtime connection lost. Please refresh the page.");
+      reportDisconnect("Connection lost. Changes stay on the page and will retry automatically.");
     };
 
     socket.onerror = () => {
-      reportDisconnect("Realtime connection lost. Please refresh the page.");
+      reportDisconnect("Connection lost. Changes stay on the page and will retry automatically.");
     };
 
     return () => {
       isCleaningUp = true;
       socket.close();
     };
-  }, [session?.access_token]);
+  }, [session?.access_token, realtimeConnectionVersion]);
 
   useEffect(() => {
     function handleServerIssue(event) {
-      const message = event.detail?.message || "Server disconnected. Please refresh the page.";
+      const message = event.detail?.message || "Connection lost. Changes stay on the page and will retry automatically.";
       setServerIssue(message);
     }
 
+    function handleServerRestored() {
+      setServerIssue("");
+      setRealtimeConnectionVersion((value) => value + 1);
+    }
+
     window.addEventListener("server:error", handleServerIssue);
-    return () => window.removeEventListener("server:error", handleServerIssue);
+    window.addEventListener("server:restored", handleServerRestored);
+
+    return () => {
+      window.removeEventListener("server:error", handleServerIssue);
+      window.removeEventListener("server:restored", handleServerRestored);
+    };
   }, []);
 
   useEffect(() => {
@@ -187,37 +197,44 @@ export default function App() {
       return undefined;
     }
 
-    if (serverRefreshTimerRef.current) {
-      window.clearTimeout(serverRefreshTimerRef.current);
+    let cancelled = false;
+
+    async function checkServerHealth() {
+      try {
+        const response = await fetch(`${API_BASE_URL}/health`, {
+          cache: "no-store"
+        });
+
+        if (response.ok && !cancelled) {
+          window.dispatchEvent(new CustomEvent("server:restored"));
+        }
+      } catch {
+        // Keep waiting for the backend to come back.
+      }
     }
 
-    serverRefreshTimerRef.current = window.setTimeout(() => {
-      window.location.reload();
-    }, 5000);
+    checkServerHealth();
+
+    const intervalId = window.setInterval(checkServerHealth, 5000);
 
     return () => {
-      if (serverRefreshTimerRef.current) {
-        window.clearTimeout(serverRefreshTimerRef.current);
-        serverRefreshTimerRef.current = null;
-      }
+      cancelled = true;
+      window.clearInterval(intervalId);
     };
   }, [serverIssue]);
 
   const latestEvent = useMemo(() => updates[0] || "No updates yet", [updates]);
   const activePageInfo = PAGE_DETAILS[activePage] || PAGE_DETAILS.employees;
   const isMasterPage = activePage === "master";
-  const serverIssuePopup = serverIssue ? (
-    <div className="server-error-backdrop" role="presentation">
-      <section className="server-error-card" role="alertdialog" aria-modal="true" aria-labelledby="server-error-title">
+  const serverIssueBanner = serverIssue ? (
+    <section className="card server-status-banner" role="status" aria-live="polite">
+      <div className="server-status-banner__copy">
         <p className="section-kicker">Connection lost</p>
-        <h2 id="server-error-title">Server disconnected</h2>
+        <strong>Edits stay on the page and retry automatically</strong>
         <p>{serverIssue}</p>
-        <p className="subtle">This page will refresh automatically in a few seconds.</p>
-        <button type="button" className="primary-btn" onClick={() => window.location.reload()}>
-          Refresh now
-        </button>
-      </section>
-    </div>
+      </div>
+      <p className="subtle">The admin portal will reconnect in the background and resubmit any unsaved attendance edits.</p>
+    </section>
   ) : null;
 
   async function handleSignOut() {
@@ -230,12 +247,12 @@ export default function App() {
   if (!authReady) {
     return (
       <>
+        {serverIssueBanner}
         <LoginScreen
           portalName="DTR Automation Admin Portal"
           description="Checking your session before opening the admin dashboard."
           errorMessage="Checking your session..."
         />
-        {serverIssuePopup}
       </>
     );
   }
@@ -243,6 +260,7 @@ export default function App() {
   if (!session) {
     return (
       <>
+        {serverIssueBanner}
         <LoginScreen
           portalName="DTR Automation Admin Portal"
           description="Use an approved TESDA email to request an OTP and open the admin portal."
@@ -253,81 +271,80 @@ export default function App() {
             setAuthReady(true);
           }}
         />
-        {serverIssuePopup}
       </>
     );
   }
 
   return (
     <>
-    <main className={isMasterPage ? "admin-page admin-page--master" : "admin-page"}>
-      <header className="admin-hero">
-        <div className="dashboard-header">
-          <div className="dashboard-header__copy">
-            <p className="section-kicker">Command center</p>
-            <h1>DTR Automation Admin Portal</h1>
-            <p>
-              Manage employees, attendance history, and reports from one editorial workspace built for speed and
-              clarity.
-            </p>
-          </div>
-
-          <div className="dashboard-header__meta">
-            <div className="dashboard-stats">
-              <article className="dashboard-stat">
-                <span>Active section</span>
-                <strong>{activePageInfo.label}</strong>
-                <p>{activePageInfo.summary}</p>
-              </article>
-              <article className="dashboard-stat">
-                <span>Realtime feed</span>
-                <strong>{updates.length}</strong>
-                <p>{latestEvent}</p>
-              </article>
+      {serverIssueBanner}
+      <main className={isMasterPage ? "admin-page admin-page--master" : "admin-page"}>
+        <header className="admin-hero">
+          <div className="dashboard-header">
+            <div className="dashboard-header__copy">
+              <p className="section-kicker">Command center</p>
+              <h1>DTR Automation Admin Portal</h1>
+              <p>
+                Manage employees, attendance history, and reports from one editorial workspace built for speed and
+                clarity.
+              </p>
             </div>
 
-            <div className="session-bar admin-session-bar">
-              <span>{session.user.email}</span>
-              <button type="button" className="secondary-btn" onClick={handleSignOut}>
-                Sign out
-              </button>
+            <div className="dashboard-header__meta">
+              <div className="dashboard-stats">
+                <article className="dashboard-stat">
+                  <span>Active section</span>
+                  <strong>{activePageInfo.label}</strong>
+                  <p>{activePageInfo.summary}</p>
+                </article>
+                <article className="dashboard-stat">
+                  <span>Realtime feed</span>
+                  <strong>{updates.length}</strong>
+                  <p>{latestEvent}</p>
+                </article>
+              </div>
+
+              <div className="session-bar admin-session-bar">
+                <span>{session.user.email}</span>
+                <button type="button" className="secondary-btn" onClick={handleSignOut}>
+                  Sign out
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      </header>
+        </header>
 
-      <NavBar activePage={activePage} onChange={setActivePage} />
+        <NavBar activePage={activePage} onChange={setActivePage} />
 
-      <div className="status-strip admin-status-strip">
-        <div className="status-card">
-          <span>Workspace</span>
-          <strong>{activePageInfo.accent}</strong>
-          <p>{activePageInfo.summary}</p>
+        <div className="status-strip admin-status-strip">
+          <div className="status-card">
+            <span>Workspace</span>
+            <strong>{activePageInfo.accent}</strong>
+            <p>{activePageInfo.summary}</p>
+          </div>
+          <div className="status-card">
+            <span>Live update</span>
+            <strong>{latestEvent}</strong>
+            <p>{updates.length ? `${updates.length} recent events` : "Waiting for activity"}</p>
+          </div>
+          <div className="status-card">
+            <span>Signed in</span>
+            <strong>{session.user.email}</strong>
+            <p>OTP-authenticated admin session.</p>
+          </div>
         </div>
-        <div className="status-card">
-          <span>Live update</span>
-          <strong>{latestEvent}</strong>
-          <p>{updates.length ? `${updates.length} recent events` : "Waiting for activity"}</p>
-        </div>
-        <div className="status-card">
-          <span>Signed in</span>
-          <strong>{session.user.email}</strong>
-          <p>OTP-authenticated admin session.</p>
-        </div>
-      </div>
 
-      {PAGE_COMPONENTS[activePage]}
+        {PAGE_COMPONENTS[activePage]}
 
-      <section className="card">
-        <h2>Realtime Feed</h2>
-        <ul className="report-list">
-          {updates.map((update, index) => (
-            <li key={`${update}-${index}`}>{update}</li>
-          ))}
-        </ul>
-      </section>
-    </main>
-    {serverIssuePopup}
+        <section className="card">
+          <h2>Realtime Feed</h2>
+          <ul className="report-list">
+            {updates.map((update, index) => (
+              <li key={`${update}-${index}`}>{update}</li>
+            ))}
+          </ul>
+        </section>
+      </main>
     </>
   );
 }

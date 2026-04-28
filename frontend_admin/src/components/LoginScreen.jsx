@@ -44,7 +44,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
 
       if (!response.ok) {
         if (response.status >= 500) {
-          notifyServerIssue("Server error. Please refresh the page.");
+          notifyServerIssue("Server unavailable. Changes stay on the page and will retry automatically.");
         }
 
         throw new Error(data.detail || "Failed to send OTP");
@@ -56,7 +56,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
       const message = error instanceof Error ? error.message : "Failed to send OTP";
 
       if (/fetch|network/i.test(message)) {
-        notifyServerIssue("Server disconnected. Please refresh the page.");
+        notifyServerIssue("Connection lost. Changes stay on the page and will retry automatically.");
       }
 
       setStatus(message);
@@ -93,7 +93,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
 
       if (!verifyResponse.ok) {
         if (verifyResponse.status >= 500) {
-          notifyServerIssue("Server error. Please refresh the page.");
+          notifyServerIssue("Server unavailable. Changes stay on the page and will retry automatically.");
         }
 
         throw new Error(verifyData.detail || "Invalid OTP code");
@@ -118,7 +118,7 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
       const message = error instanceof Error ? error.message : "Invalid OTP code";
 
       if (/fetch|network/i.test(message)) {
-        notifyServerIssue("Server disconnected. Please refresh the page.");
+        notifyServerIssue("Connection lost. Changes stay on the page and will retry automatically.");
       }
 
       setStatus(message);
