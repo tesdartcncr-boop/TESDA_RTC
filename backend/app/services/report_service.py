@@ -34,7 +34,7 @@ def _calculate_total_hours(record: dict | None) -> str:
   schedule_type = str(record.get("schedule_type") or "A").strip().upper()
   required_minutes = int(record.get("required_minutes") or (600 if schedule_type == "B" else 480))
   category = str(record.get("category") or "").strip().lower()
-  work_floor_minutes = 7 * 60
+  work_floor_minutes = 8 * 60 if category == "jo" else 7 * 60
   ob_anchor_minutes = 8 * 60 if category == "jo" else 7 * 60
 
   if is_ob_record:
@@ -79,7 +79,7 @@ def get_month_range(month: str) -> tuple[str, str]:
 
 
 def get_enriched_attendance(month: str | None = None) -> list[dict]:
-  cache_key = f"reports:enriched-attendance:v5:{(month or 'all').strip() or 'all'}"
+  cache_key = f"reports:enriched-attendance:v6:{(month or 'all').strip() or 'all'}"
   cached_rows = get_cached_value(cache_key)
   if cached_rows is not None:
     return cached_rows

@@ -109,6 +109,15 @@ def _resolve_ob_anchor(schedule: str | dict | None) -> tuple[int, str]:
   return 7 * 60, "07:00"
 
 
+def _resolve_record_floor(schedule: str | dict | None) -> int:
+  if isinstance(schedule, dict):
+    category = str(schedule.get("category") or "").strip().lower()
+    if category == "jo":
+      return 8 * 60
+
+  return 7 * 60
+
+
 def calculate_dtr_metrics(
   schedule: str | dict,
   time_in: str | None,
@@ -120,7 +129,7 @@ def calculate_dtr_metrics(
   normalized_out = normalize_time_token(time_out)
   normalized_leave = (leave_type or "").upper() or None
   schedule_start_minutes, schedule_end_minutes, required_minutes = _resolve_schedule_details(schedule)
-  record_floor_minutes = 7 * 60
+  record_floor_minutes = _resolve_record_floor(schedule)
   ob_anchor_minutes, ob_anchor_token = _resolve_ob_anchor(schedule)
 
   if normalized_leave == "OB" or normalized_in == "OB" or normalized_out == "OB":

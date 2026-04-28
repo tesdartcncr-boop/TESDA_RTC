@@ -150,7 +150,7 @@ function formatTotalHours(record) {
   const scheduleType = String(record.schedule_type || "A").trim().toUpperCase();
   const requiredMinutes = Number(record.required_minutes || (scheduleType === "B" ? 600 : 480));
   const category = String(record.category || "").trim().toLowerCase();
-  const workFloorMinutes = 7 * 60;
+  const workFloorMinutes = category === "jo" ? 8 * 60 : 7 * 60;
   const obAnchorMinutes = category === "jo" ? 8 * 60 : 7 * 60;
 
   if (isObRecord) {
