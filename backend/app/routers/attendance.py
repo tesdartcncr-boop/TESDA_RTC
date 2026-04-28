@@ -249,6 +249,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
     "employees": [
       {
         "id": employee["id"],
+        "employee_no": employee.get("employee_no"),
         "office": employee.get("office"),
         "first_name": employee.get("first_name", ""),
         "second_name": employee.get("second_name"),
@@ -267,7 +268,7 @@ def _build_master_sheet_context(date_from: str, date_to: str, category: str) -> 
 
 def _master_sheet_cache_key(date_from: str, date_to: str, category: str) -> str:
   normalized_category = (category or "all").strip().lower() or "all"
-  return f"attendance:master-sheet:v5:{normalized_category}:{date_from}:{date_to}"
+  return f"attendance:master-sheet:v6:{normalized_category}:{date_from}:{date_to}"
 
 
 def _get_cached_master_sheet_context(date_from: str, date_to: str, category: str) -> dict:
