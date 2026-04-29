@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from .config import get_allowed_origins, settings
-from .routers import attendance, backups, employees, otp, reports, settings as settings_router
+from .routers import attendance, backups, employees, employee_profile, leave_notifs, otp, reports, settings as settings_router
 from .services.auth import PROTECTED_PATH_PREFIXES, extract_bearer_token, verify_supabase_access_token
 from .services.backup_service import create_backup_snapshot
 from .services.cache_revision import build_cache_revision
@@ -18,6 +18,8 @@ api = FastAPI(title="DTR Automation API", version="1.0.0")
 
 api.include_router(employees.router)
 api.include_router(attendance.router)
+api.include_router(leave_notifs.router)
+api.include_router(employee_profile.router)
 api.include_router(settings_router.router)
 api.include_router(reports.router)
 api.include_router(backups.router)

@@ -129,43 +129,80 @@ export default function LoginScreen({ portalName, description, errorMessage = ""
 
   return (
     <main className="admin-auth-page">
-      <section className="card auth-card admin-auth-card">
-        <div>
-          <p className="eyebrow admin-eyebrow">Secure access</p>
+      <section className="admin-auth-card">
+        <div className="admin-auth-header">
+          <div className="admin-auth-icon-container">
+            <svg className="admin-auth-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+          </div>
           <h1>{portalName}</h1>
-          <p className="subtle">{description}</p>
+          <p className="admin-auth-description">{description}</p>
         </div>
 
-        <label className="auth-field">
-          <span>Email address</span>
-          <input
-            type="email"
-            placeholder="Enter your TESDA email"
-            value={email}
-            onChange={(event) => setEmail(event.target.value)}
-          />
-        </label>
+        <div className="admin-auth-form">
+          <div className="admin-form-group">
+            <label htmlFor="admin-email-input" className="admin-form-label">
+              <svg className="admin-label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="2" y="4" width="20" height="16" rx="2"></rect>
+                <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"></path>
+              </svg> Email Address
+            </label>
+            <input
+              id="admin-email-input"
+              type="email"
+              autoComplete="email"
+              placeholder="your.name@tesda.gov.ph"
+              value={email}
+              onChange={(event) => setEmail(event.target.value)}
+              className="admin-form-input"
+            />
+          </div>
 
-        <label className="auth-field">
-          <span>OTP code</span>
-          <input
-            inputMode="numeric"
-            placeholder="Enter the 6-digit code"
-            value={otp}
-            onChange={(event) => setOtp(event.target.value)}
-          />
-        </label>
+          <div className="admin-form-group">
+            <label htmlFor="admin-otp-input" className="admin-form-label">
+              <svg className="admin-label-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+                <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+              </svg> One-Time Password
+            </label>
+            <input
+              id="admin-otp-input"
+              inputMode="numeric"
+              autoComplete="one-time-code"
+              placeholder="000000"
+              value={otp}
+              onChange={(event) => setOtp(event.target.value)}
+              className="admin-form-input"
+            />
+          </div>
 
-        <div className="auth-actions">
-          <button type="button" className="primary-btn" onClick={requestOtp} disabled={isSending}>
-            {isSending ? "Sending..." : isCodeSent ? "Resend OTP" : "Send OTP"}
-          </button>
-          <button type="button" className="secondary-btn" onClick={verifyAndSignIn} disabled={isVerifying || !isCodeSent}>
-            {isVerifying ? "Verifying..." : "Verify OTP"}
-          </button>
+          <div className="admin-auth-actions">
+            <button 
+              type="button" 
+              className="admin-btn admin-btn--primary" 
+              onClick={requestOtp} 
+              disabled={isSending}
+            >
+              {isSending ? "Sending..." : isCodeSent ? "Resend" : "Send OTP"}
+            </button>
+            <button 
+              type="button" 
+              className="admin-btn admin-btn--secondary" 
+              onClick={verifyAndSignIn} 
+              disabled={isVerifying || !isCodeSent}
+            >
+              {isVerifying ? "Verifying..." : "Verify"}
+            </button>
+          </div>
         </div>
 
-        <p className="auth-status">{status}</p>
+        <div className="admin-auth-status-container">
+          <p className="admin-auth-status" aria-live="polite">
+            {status}
+          </p>
+        </div>
       </section>
     </main>
   );

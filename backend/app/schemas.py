@@ -25,6 +25,35 @@ class EmployeeUpdate(EmployeeNameParts):
   employee_password: str | None = Field(default=None, min_length=4, max_length=120)
 
 
+class LeaveTypeCreate(BaseModel):
+  code: str = Field(min_length=1, max_length=24)
+  name: str = Field(min_length=2, max_length=120)
+  description: str | None = Field(default=None, max_length=240)
+  active: bool = True
+
+
+class LeaveTypeUpdate(BaseModel):
+  code: str | None = Field(default=None, min_length=1, max_length=24)
+  name: str | None = Field(default=None, min_length=2, max_length=120)
+  description: str | None = Field(default=None, max_length=240)
+  active: bool | None = None
+
+
+class EmployeeLeaveBalanceItem(BaseModel):
+  leave_type_id: int
+  quantity: float = Field(ge=0)
+
+
+class EmployeeLeaveBalancesUpsert(BaseModel):
+  employee_id: int
+  balances: list[EmployeeLeaveBalanceItem]
+
+
+class EmployeeProfileLookupRequest(BaseModel):
+  employee_id: int
+  employee_password: str = Field(min_length=1, max_length=120)
+
+
 class DistrictOfficeUpdate(BaseModel):
   office: str | None = Field(default=None, max_length=150)
 

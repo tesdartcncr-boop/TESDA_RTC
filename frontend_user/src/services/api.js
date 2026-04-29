@@ -256,6 +256,18 @@ export const api = {
       });
     });
   },
+  getProfileEmployees() {
+    return request("/profile/employees");
+  },
+  getProfileLeaveTypes() {
+    return request("/profile/leave-types");
+  },
+  lookupEmployeeProfile(payload) {
+    return request("/profile/lookup", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    });
+  },
   clearEmployeeCache(category) {
     clearEmployeeCache(category);
   },

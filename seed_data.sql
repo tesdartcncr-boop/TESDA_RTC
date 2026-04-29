@@ -1,7 +1,7 @@
 -- DTR Automation Seed Data
 -- Run this file after supabase_schema.sql
 
-truncate table attendance, weekly_schedule_settings, schedule_settings, notifications, backup_logs, employees restart identity cascade;
+truncate table attendance, weekly_schedule_settings, schedule_settings, notifications, backup_logs, employee_leave_balances, leave_types, employees restart identity cascade;
 
 insert into employees (id, first_name, second_name, last_name, extension, office, employee_password_hash, name, category) values
 (1, 'Alicia', null, 'Ramos', null, 'TESDA District Office', 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Alicia Ramos', 'regular'),
@@ -14,6 +14,43 @@ insert into employees (id, first_name, second_name, last_name, extension, office
 (8, 'Hector', 'Dela', 'Pena', null, 'TESDA District Office', 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Hector Dela Pena', 'jo'),
 (9, 'Irene', null, 'Gomez', null, 'TESDA District Office', 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Irene Gomez', 'jo'),
 (10, 'Jomar', null, 'Velasco', null, 'TESDA District Office', 'pbkdf2_sha256$120000$ZHRyLXNlZWQtc2FsdC0yMDI2$c2AonrD+vUjxIcIH7gQ9Ei0eYz4+XP0sdH2RgDc9B4E=', 'Jomar Velasco', 'jo');
+
+insert into leave_types (id, code, name, description, active) values
+(1, 'SL', 'Sick Leave', 'Leave credit for illness or medical recovery', true),
+(2, 'VL', 'Vacation Leave', 'Leave credit for personal or vacation use', true),
+(3, 'OB', 'Official Business', 'Official business day credit', true);
+
+insert into employee_leave_balances (employee_id, leave_type_id, quantity) values
+(1, 1, 15),
+(1, 2, 15),
+(1, 3, 5),
+(2, 1, 12),
+(2, 2, 15),
+(2, 3, 5),
+(3, 1, 15),
+(3, 2, 12),
+(3, 3, 5),
+(4, 1, 10),
+(4, 2, 10),
+(4, 3, 4),
+(5, 1, 15),
+(5, 2, 15),
+(5, 3, 5),
+(6, 1, 12),
+(6, 2, 12),
+(6, 3, 4),
+(7, 1, 10),
+(7, 2, 10),
+(7, 3, 3),
+(8, 1, 8),
+(8, 2, 8),
+(8, 3, 3),
+(9, 1, 8),
+(9, 2, 6),
+(9, 3, 2),
+(10, 1, 5),
+(10, 2, 5),
+(10, 3, 2);
 
 insert into schedule_settings (id, date, schedule_type, late_threshold) values
 (1, '2026-04-01', 'A', '08:00'),
@@ -94,6 +131,8 @@ insert into backup_logs (id, filename, source, created_at) values
 (5, 'dtr-backup-20260410-173001.json', 'manual', '2026-04-10 17:30:01+08');
 
 select setval('employees_id_seq', (select max(id) from employees));
+select setval('leave_types_id_seq', (select max(id) from leave_types));
+select setval('employee_leave_balances_id_seq', (select max(id) from employee_leave_balances));
 select setval('weekly_schedule_settings_id_seq', (select max(id) from weekly_schedule_settings));
 select setval('schedule_settings_id_seq', (select max(id) from schedule_settings));
 select setval('attendance_id_seq', (select max(id) from attendance));

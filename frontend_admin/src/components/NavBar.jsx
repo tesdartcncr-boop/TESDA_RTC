@@ -3,6 +3,7 @@ const NAV_ITEMS = [
   { id: "master", label: "Master Sheet" },
   { id: "schedule", label: "Weekly Schedule" },
   { id: "authEmails", label: "Authorized Emails" },
+  { id: "leaveNotifs", label: "Leave Notif" },
   { id: "reports", label: "Reports" }
 ];
 

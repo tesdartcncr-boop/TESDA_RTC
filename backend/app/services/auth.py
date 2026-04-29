@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request as FastAPIRequest
 from ..config import get_allowed_auth_emails, settings
 
 
-PROTECTED_PATH_PREFIXES = ("/attendance", "/employees", "/settings", "/reports", "/backups")
+PROTECTED_PATH_PREFIXES = ("/attendance", "/employees", "/leave-notifs", "/settings", "/reports", "/backups")
 
 
 def _portal_secret() -> bytes:

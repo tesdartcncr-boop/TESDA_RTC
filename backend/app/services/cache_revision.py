@@ -49,6 +49,8 @@ def build_cache_revision() -> str:
   for table_name, timestamp_column in (
     ("employees", "created_at"),
     ("attendance", "updated_at"),
+    ("leave_types", "updated_at"),
+    ("employee_leave_balances", "updated_at"),
     ("schedule_settings", "created_at"),
     ("weekly_schedule_settings", "updated_at"),
   ):

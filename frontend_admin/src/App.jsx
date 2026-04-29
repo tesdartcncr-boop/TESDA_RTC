@@ -4,6 +4,7 @@ import NavBar from "./components/NavBar";
 import AuthorizedEmailsPage from "./pages/AuthorizedEmailsPage";
 import EmployeesPage from "./pages/EmployeesPage";
 import MasterSheetPage from "./pages/MasterSheetPage";
+import LeaveNotifPage from "./pages/LeaveNotifPage";
 import ReportsPage from "./pages/ReportsPage";
 import ScheduleSettingsPage from "./pages/ScheduleSettingsPage";
 import { API_BASE_URL, api } from "./services/api";
@@ -32,6 +33,11 @@ const PAGE_DETAILS = {
     summary: "Control which inboxes can request OTP access into the portals.",
     accent: "Access control"
   },
+  leaveNotifs: {
+    label: "Leave Notif",
+    summary: "Define leave types and assign balances per employee.",
+    accent: "Leave ledger"
+  },
   reports: {
     label: "Reports",
     summary: "Export monthly summaries and late reports for review.",
@@ -44,6 +50,7 @@ const PAGE_COMPONENTS = {
   master: <MasterSheetPage />,
   schedule: <ScheduleSettingsPage />,
   authEmails: <AuthorizedEmailsPage />,
+  leaveNotifs: <LeaveNotifPage />,
   reports: <ReportsPage />,
 };
 
@@ -131,6 +138,7 @@ export default function App() {
       if (payload.type === "employee.created" || payload.type === "employee.updated" || payload.type === "employee.deleted") {
         api.clearMasterSheetCache();
         dispatchUpdate("employees:invalidate");
+        dispatchUpdate("leave-notifs:invalidate");
         dispatchUpdate("reports:invalidate");
       } else if (payload.type === "attendance.updated") {
         api.clearMasterSheetCache();
@@ -138,12 +146,15 @@ export default function App() {
         dispatchUpdate("schedule-settings:invalidate");
       } else if (payload.type === "settings.auth_email.added" || payload.type === "settings.auth_email.updated") {
         dispatchUpdate("auth-emails:invalidate");
+      } else if (payload.type === "leave.type.updated" || payload.type === "leave.balance.updated") {
+        dispatchUpdate("leave-notifs:invalidate");
       } else if (payload.type === "backup.restored") {
         api.clearMasterSheetCache();
         dispatchUpdate("employees:invalidate");
         dispatchUpdate("reports:invalidate");
         dispatchUpdate("schedule-settings:invalidate");
         dispatchUpdate("auth-emails:invalidate");
+        dispatchUpdate("leave-notifs:invalidate");
       }
     }, session.access_token);
 

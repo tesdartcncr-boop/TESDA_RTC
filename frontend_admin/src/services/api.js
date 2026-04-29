@@ -344,6 +344,39 @@ export const api = {
       return data;
     });
   },
+  getLeaveNotifDashboard() {
+    return request("/leave-notifs/dashboard");
+  },
+  listLeaveTypes() {
+    return request("/leave-notifs/types");
+  },
+  addLeaveType(payload) {
+    return request("/leave-notifs/types", {
+      method: "POST",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      return data;
+    });
+  },
+  updateLeaveType(leaveTypeId, payload) {
+    return request(`/leave-notifs/types/${leaveTypeId}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      return data;
+    });
+  },
+  saveEmployeeLeaveBalances(payload) {
+    return request("/leave-notifs/balances", {
+      method: "PUT",
+      body: JSON.stringify(payload)
+    }).then((data) => {
+      invalidateCacheRevision();
+      return data;
+    });
+  },
   getMasterAttendance(params) {
     const searchParams = buildSearchParams(params);
     return request(`/attendance/master?${searchParams}`);

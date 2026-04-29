@@ -142,9 +142,52 @@
     created_at timestamptz not null default now()
   );
 
+  -- Leave type registry shown to employees and used by admin leave allocation.
+  create table if not exists leave_types (
+    id bigserial primary key,
+    code text not null unique,
+    name text not null,
+    description text,
+    active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+  );
+
+  -- Per-employee leave allocations.
+  create table if not exists employee_leave_balances (
+    id bigserial primary key,
+    employee_id bigint not null references employees(id) on delete cascade,
+    leave_type_id bigint not null references leave_types(id) on delete cascade,
+    quantity numeric(10,2) not null default 0 check (quantity >= 0),
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
+    unique (employee_id, leave_type_id)
+  );
+
+  create index if not exists employee_leave_balances_employee_idx on employee_leave_balances (employee_id);
+  create index if not exists employee_leave_balances_leave_type_idx on employee_leave_balances (leave_type_id);
+
+  drop trigger if exists leave_types_set_updated_at on leave_types;
+  create trigger leave_types_set_updated_at
+  before update on leave_types
+  for each row
+  execute function set_updated_at();
+
+  drop trigger if exists employee_leave_balances_set_updated_at on employee_leave_balances;
+  create trigger employee_leave_balances_set_updated_at
+  before update on employee_leave_balances
+  for each row
+  execute function set_updated_at();
+
   insert into auth_allowed_emails (email) values
   ('tesda.mpltp.tapat@gmail.com'),
   ('mssabatin@tesda.gov.ph')
+  on conflict do nothing;
+
+  insert into leave_types (code, name, description) values
+  ('SL', 'Sick Leave', 'Leave credit for illness or medical recovery'),
+  ('VL', 'Vacation Leave', 'Leave credit for personal or vacation use'),
+  ('OB', 'Official Business', 'Official business day credit')
   on conflict do nothing;
 
   -- Optional: enable row-level security and allow public select of enabled rows.
